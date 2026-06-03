@@ -1266,3 +1266,9 @@ body {
 .toast.show {
   transform: translateX(-50%) translateY(0);
 }
+
+.input-with-action {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+}

@@ -164,6 +164,7 @@ document.addEventListener('DOMContentLoaded', () => {
     editCarbs: document.getElementById('edit-carbs'),
     editFat: document.getElementById('edit-fat'),
     btnSaveLog: document.getElementById('btn-save-log'),
+    btnReestimate: document.getElementById('btn-reestimate'),
     
     // Stats UI
     todayTotalCalories: document.getElementById('today-total-calories'),
@@ -417,6 +418,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Save Log item from Result success panel
     el.btnSaveLog.addEventListener('click', saveCurrentScanToLog);
+    el.btnReestimate.addEventListener('click', handleManualReestimate);
 
     // Stats Chart selectors
     el.chartRangeBtns.forEach(btn => {
@@ -827,6 +829,104 @@ document.addEventListener('DOMContentLoaded', () => {
     // Clear canvas
     el.photoCanvas.classList.add('hidden');
     el.viewportPlaceholder.classList.remove('hidden');
+  }
+
+  function handleManualReestimate() {
+    const foodName = el.editFoodName.value.trim();
+    if (!foodName) {
+      showToast("אנא הקלד שם מאכל כלשהו תחילה! ✍️");
+      return;
+    }
+
+    const lowerName = foodName.toLowerCase();
+    
+    // Hebrew search database for common foods and their average stats
+    const dictionary = [
+      { key: "פוקצ", name: "פוקצ'ה טרייה עם שמן זית", category: "פחמימה אפויה", weight: 240, calories: 650, protein: 12, carbs: 80, fat: 16 },
+      { key: "פיצה", name: "משולש פיצה עם גבינה", category: "פחמימה מושחתת", weight: 120, calories: 290, protein: 12, carbs: 32, fat: 12 },
+      { key: "סלט", name: "סלט ירקות ישראלי קצוץ", category: "ירקות ובריאות", weight: 350, calories: 180, protein: 4, carbs: 15, fat: 12 },
+      { key: "שניצל", name: "שניצל עוף ביתי מטוגן", category: "בישול ביתי", weight: 150, calories: 350, protein: 24, carbs: 20, fat: 18 },
+      { key: "פלאפל", name: "מנת פלאפל בפיתה עם סלטים", category: "פחמימה מטוגנת", weight: 350, calories: 680, protein: 16, carbs: 85, fat: 28 },
+      { key: "לאפה", name: "לאפה עיראקית גדולה ריקה", category: "פחמימה ריקה", weight: 160, calories: 480, protein: 10, carbs: 90, fat: 2 },
+      { key: "בורקס", name: "בורקס תפוח אדמה פריך", category: "שומן ופחמימות", weight: 100, calories: 360, protein: 6, carbs: 38, fat: 22 },
+      { key: "אורז", name: "אורז לבן מבושל", category: "פחמימות", weight: 200, calories: 260, protein: 5, carbs: 56, fat: 1 },
+      { key: "המבורגר", name: "המבורגר בלחמניה עם רטבים", category: "פחמימה מושחתת", weight: 350, calories: 750, protein: 32, carbs: 65, fat: 32 },
+      { key: "חלה", name: "פרוסת חלת שבת מתוקה", category: "פחמימות", weight: 60, calories: 170, protein: 5, carbs: 32, fat: 2 },
+      { key: "עוגה", name: "פרוסת עוגה מתוקה", category: "מתוקים וחרטות", weight: 80, calories: 320, protein: 4, carbs: 45, fat: 16 },
+      { key: "עוגיי", name: "עוגייה גדולה", category: "מתוקים וחרטות", weight: 40, calories: 180, protein: 2, carbs: 25, fat: 8 },
+      { key: "פסטה", name: "צלחת פסטה ברוטב עגבניות", category: "פחמימות", weight: 280, calories: 420, protein: 12, carbs: 75, fat: 10 },
+      { key: "עוף", name: "נתח חזה עוף / פרגית בגריל", category: "חלבונים", weight: 180, calories: 280, protein: 35, carbs: 0, fat: 14 },
+      { key: "פרג", name: "נתחי פרגית צלויה", category: "חלבונים", weight: 180, calories: 320, protein: 32, carbs: 0, fat: 18 },
+      { key: "שווארמה", name: "שווארמה בצלחת עם טחינה", category: "חלבונים ושומן", weight: 250, calories: 540, protein: 35, carbs: 12, fat: 38 },
+      { key: "לחם", name: "פרוסת לחם מלא", category: "פחמימות", weight: 40, calories: 95, protein: 3.5, carbs: 18, fat: 1 },
+      { key: "תפוח", name: "תפוח עץ טרי קטן", category: "פירות", weight: 150, calories: 80, protein: 0.5, carbs: 20, fat: 0.2 },
+      { key: "בננה", name: "בננה בשלה בינונית", category: "פירות", weight: 120, calories: 105, protein: 1.2, carbs: 27, fat: 0.3 },
+      { key: "קפה", name: "קפה הפוך קפוצ'ינו גדול", category: "משקאות", weight: 300, calories: 120, protein: 6, carbs: 10, fat: 6 },
+      { key: "שוקולד", name: "חפיסת שוקולד חלב (חלקית)", category: "מתוקים וחרטות", weight: 50, calories: 270, protein: 3, carbs: 30, fat: 15 }
+    ];
+
+    // Try to find a match
+    let match = null;
+    for (const entry of dictionary) {
+      if (lowerName.includes(entry.key)) {
+        match = entry;
+        break;
+      }
+    }
+
+    let finalDish = null;
+    if (match) {
+      // Create copy of matching entry
+      finalDish = {
+        name: foodName, // keep user's exact typed name
+        category: match.category,
+        weight: match.weight,
+        calories: match.calories,
+        protein: match.protein,
+        carbs: match.carbs,
+        fat: match.fat
+      };
+    } else {
+      // Fallback pseudo-random calculation based on text features
+      const nameLength = foodName.length;
+      const computedCalories = 200 + ((nameLength * 17) % 400); // 200 to 600
+      const computedWeight = 150 + ((nameLength * 23) % 250); // 150 to 400
+      const computedProtein = 5 + ((nameLength * 7) % 25);
+      const computedCarbs = 15 + ((nameLength * 11) % 60);
+      const computedFat = 5 + ((nameLength * 3) % 20);
+
+      finalDish = {
+        name: foodName,
+        category: "סריקה ידנית",
+        weight: computedWeight,
+        calories: computedCalories,
+        protein: computedProtein,
+        carbs: computedCarbs,
+        fat: computedFat
+      };
+      
+      showToast("שם המאכל לא זוהה במאגר. ביצענו הערכה משוערת! 🪄");
+    }
+
+    // Build comments on the fly for the new dish depending on selected persona
+    const comments = {
+      'passive-aggressive': `חשבת מחדש כ'${finalDish.name}'. בסדר. העיקר שאתה שלם עם עצמך. המאזן השנתי של קופת החולים פחות שלם עם זה.`,
+      'grandma': `אה, '${finalDish.name}'! עכשיו זה נשמע לי כמו אוכל! הוספתי לך עוד טיפה רוטב וירטואלי של סבתא, שלא תרזה לי חלילה.`,
+      'existential': `'${finalDish.name}' הוא בסך הכל פחמימה או חלבון שתאכל ותעכל. מה המשמעות של ספירת אחוזים כשהזמן עצמו נוזל בין אצבעותינו?`,
+      'coach': `'${finalDish.name}' נכנס לזירה! ${finalDish.calories} קלוריות! תתחיל לפמפם שרירי חזה, שום מאכל לא מגיע בחינם! 💪`
+    };
+
+    finalDish.comments = comments;
+
+    // Trigger update of display with final estimates
+    displayScanResult(finalDish);
+    
+    // Re-open adjustment inputs since displayScanResult closes it by default
+    el.adjustmentFields.classList.remove('hidden');
+
+    if (match) {
+      showToast(`הערכים עודכנו בהצלחה לפי המאכל '${finalDish.name}'! 🪄`);
+    }
   }
 
   function deleteMeal(mealId) {
