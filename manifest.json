@@ -1,12 +1,14 @@
 {
-  "name": "קלורי-קומדי | CaloriComedy",
-  "short_name": "קלורי קומדי",
-  "description": "סורק קלוריות שופט והומוריסטי למאכלים ומשקאות ללא אריזה",
+  "name": "קלוריטראק | מעקב קלוריות יומי",
+  "short_name": "קלוריטראק",
+  "description": "אפליקציה חכמה לרישום ומעקב קלוריות, ארוחות, ערכים תזונתיים ומים",
   "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#0a0512",
-  "theme_color": "#0a0512",
+  "background_color": "#0f172a",
+  "theme_color": "#10b981",
   "orientation": "portrait-primary",
+  "dir": "rtl",
+  "lang": "he",
   "icons": [
     {
       "src": "./icon-192.png",
