@@ -48,11 +48,15 @@
     <nav class="main-nav" aria-label="ניווט ראשי">
       <button type="button" class="nav-tab active" data-view="dashboard">
         <span class="nav-icon">📊</span>
-        <span>יומן יומי</span>
+        <span>היום שלי</span>
+      </button>
+      <button type="button" class="nav-tab" data-view="journal">
+        <span class="nav-icon">📖</span>
+        <span>יומן ומים</span>
       </button>
       <button type="button" class="nav-tab" data-view="foods">
         <span class="nav-icon">🍎</span>
-        <span>מאגר מזונות</span>
+        <span>מאגר</span>
       </button>
       <button type="button" class="nav-tab" data-view="stats">
         <span class="nav-icon">📈</span>
@@ -70,12 +74,67 @@
 
     <!-- VIEW 1: DAILY DASHBOARD -->
     <main id="view-dashboard" class="view-section active">
+      <section class="card body-card" aria-labelledby="body-title">
+        <div class="body-heading">
+          <h2 id="body-title">היום שלי, בתנועה</h2>
+          <span class="body-live-badge" id="body-activity-label">מתחילים בקטן</span>
+        </div>
+        <figure class="body-figure" id="body-figure">
+          <svg class="body-avatar" viewBox="0 0 240 320" role="img" aria-labelledby="avatar-title avatar-desc">
+            <title id="avatar-title">דמות התקדמות יומית</title>
+            <desc id="avatar-desc">המילוי הירוק מציג התקדמות קלוריות והכחול מציג שתיית מים.</desc>
+            <defs>
+              <linearGradient id="body-surface" x1="0" x2="1">
+                <stop offset="0" stop-color="#547285"/>
+                <stop offset=".35" stop-color="#cce2e8"/>
+                <stop offset=".58" stop-color="#8ba6b7"/>
+                <stop offset="1" stop-color="#334d65"/>
+              </linearGradient>
+              <linearGradient id="body-food-gradient" x1="0" x2="1">
+                <stop stop-color="#0d7667"/><stop offset=".65" stop-color="#5ff3ad"/><stop offset="1" stop-color="#25b894"/>
+              </linearGradient>
+              <linearGradient id="body-water-gradient" x1="0" x2="1">
+                <stop stop-color="#6ae7ff"/><stop offset=".45" stop-color="#2eb3f1"/><stop offset="1" stop-color="#2263ba"/>
+              </linearGradient>
+              <radialGradient id="body-halo">
+                <stop stop-color="#24cba9" stop-opacity=".22"/><stop offset="1" stop-color="#24cba9" stop-opacity="0"/>
+              </radialGradient>
+              <path id="body-shape" d="M120 20 C94 20 92 40 95 56 C97 67 101 73 108 78 L108 88 C88 91 73 94 68 113 L49 177 Q45 191 57 195 Q69 198 73 184 L86 141 L87 188 L86 219 L82 278 Q79 295 88 298 L103 298 Q113 294 111 280 L114 221 L126 221 L129 280 Q127 294 137 298 L152 298 Q161 295 158 278 L154 219 L153 188 L154 141 L167 184 Q171 198 183 195 Q195 191 191 177 L172 113 C167 94 152 91 132 88 L132 78 C139 73 143 67 145 56 C148 40 146 20 120 20Z"/>
+              <clipPath id="body-clip"><use href="#body-shape"/></clipPath>
+            </defs>
+            <ellipse cx="120" cy="156" rx="117" ry="150" fill="url(#body-halo)"/>
+            <ellipse class="body-shadow" cx="120" cy="305" rx="57" ry="8" fill="#020d1c" opacity=".65"/>
+            <g class="body-model">
+              <use href="#body-shape" fill="url(#body-surface)" stroke="#d5f3fa" stroke-opacity=".4"/>
+              <g clip-path="url(#body-clip)">
+                <rect id="body-food-fill" x="40" y="298" width="80" height="0" fill="url(#body-food-gradient)"/>
+                <rect id="body-water-fill" x="120" y="298" width="80" height="0" fill="url(#body-water-gradient)"/>
+                <path d="M102 29 Q111 24 126 28 M80 114 L63 177 M97 213 L93 279" fill="none" stroke="white" stroke-width="6" stroke-linecap="round" opacity=".24"/>
+                <path d="M120 94 L120 203 M92 122 Q120 136 148 122 M103 165 Q120 171 137 165" fill="none" stroke="#092e45" stroke-width="2" opacity=".22"/>
+              </g>
+              <ellipse cx="109" cy="49" rx="3" ry="4" fill="#14394d"/>
+              <ellipse cx="131" cy="49" rx="3" ry="4" fill="#14394d"/>
+              <path d="M111 64 Q120 71 129 64" fill="none" stroke="#14394d" stroke-width="2.5" stroke-linecap="round"/>
+            </g>
+            <g class="sweat-drops" fill="#6ce4ff" aria-hidden="true">
+              <path class="sweat-drop" d="M161 45 Q151 60 161 62 Q171 60 161 45Z"/>
+              <path class="sweat-drop" d="M77 58 Q67 73 77 75 Q87 73 77 58Z"/>
+              <path class="sweat-drop" d="M185 104 Q175 119 185 121 Q195 119 185 104Z"/>
+            </g>
+          </svg>
+          <figcaption class="body-legend">
+            <span class="food-legend">אוכל <strong id="body-food-percent">0%</strong></span>
+            <span class="water-legend">מים <strong id="body-water-percent">0%</strong></span>
+          </figcaption>
+        </figure>
+        <p class="body-disclaimer">המחשת התקדמות בלבד</p>
+      </section>
       <!-- Summary Hero Card -->
       <section class="hero-card">
         <div class="calorie-overview">
           <div class="cal-stat">
-            <span class="cal-stat-label">יעד יומי</span>
-            <strong class="cal-stat-val" id="summary-goal">2000</strong>
+            <span class="cal-stat-label">קלוריות שנכנסו</span>
+            <strong class="cal-stat-val" id="summary-eaten">0</strong>
             <small>קק"ל</small>
           </div>
 
@@ -87,7 +146,7 @@
             <div class="ring-center">
               <span class="ring-status-label" id="ring-status-label">נותרו</span>
               <strong class="ring-main-number" id="summary-remaining">2000</strong>
-              <span class="ring-sub-text">מתוך <span id="summary-eaten">0</span> שנצרכו</span>
+              <span class="ring-sub-text">יעד <span id="summary-goal">2000</span> קק"ל</span>
             </div>
           </div>
 
@@ -132,7 +191,25 @@
         </div>
       </section>
 
-      <!-- Quick Action Bar -->
+      <section class="card ai-log-card">
+        <div class="card-header">
+          <div>
+            <h2>✨ מה עשית היום?</h2>
+            <p class="card-subtitle">אוכל, מים או אימון — כותבים או מדברים, ו-Gemini מסדר ביומן.</p>
+          </div>
+          <span class="ai-model-badge">Gemini 3.8 Flash</span>
+        </div>
+        <form id="ai-food-form" class="stacked-form">
+          <label for="ai-food-description">מה תרצה לרשום ביומן?</label>
+          <textarea id="ai-food-description" rows="2" maxlength="1200" placeholder="אתמול אכלתי שתי ביצים, שתיתי שתי כוסות מים ושיחקתי 3 על 3 מ-15 עד 17..." required></textarea>
+          <button type="submit" class="primary-btn full-width" id="ai-food-submit-btn">✨ הבן והוסף ליומן</button>
+        </form>
+        <div class="ai-progress hidden" id="ai-progress" role="status" aria-live="polite"></div>
+        <div class="ai-result hidden" id="ai-result" aria-live="polite"></div>
+      </section>
+    </main>
+
+    <main id="view-journal" class="view-section">
       <section class="quick-actions-bar">
         <button type="button" class="primary-btn pulse-btn" id="open-add-food-btn">
           <span>➕ הוספת מאכל ליומן</span>
@@ -141,8 +218,6 @@
           <span>🏃 הוספת אימון</span>
         </button>
       </section>
-
-      <!-- Fast Presets Strip -->
       <section class="fast-add-strip">
         <div class="strip-header">
           <h2>⚡ הוספה מהירה</h2>
@@ -150,24 +225,6 @@
         </div>
         <div class="chips-scroll" id="quick-chips-container"></div>
       </section>
-
-      <section class="card ai-log-card">
-        <div class="card-header">
-          <div>
-            <h2>✨ צ'אט לרישום אוכל ופעילות</h2>
-            <p class="card-subtitle">כתוב בשפה חופשית על אוכל, אימון או תאריך — ה-AI יבין את ההקשר וישייך כל דבר ליום המתאים.</p>
-          </div>
-          <span class="ai-model-badge">Gemini 3.8 Flash</span>
-        </div>
-        <form id="ai-food-form" class="stacked-form">
-          <label for="ai-food-description">מה תרצה לרשום ביומן?</label>
-          <textarea id="ai-food-description" rows="3" maxlength="1200" placeholder="לדוגמה: אתמול בבוקר אכלתי שתי ביצים ולחם. ב-15 באוקטובר שיחקתי 3 על 3 בכדורסל מ-15 עד 17, והיום רצתי 30 דקות." required></textarea>
-          <button type="submit" class="primary-btn full-width" id="ai-food-submit-btn">✨ הבן והוסף ליומן</button>
-        </form>
-        <div class="ai-progress hidden" id="ai-progress" role="status" aria-live="polite"></div>
-        <div class="ai-result hidden" id="ai-result" aria-live="polite"></div>
-      </section>
-
       <!-- Meals Container -->
       <section class="meals-grid" id="meals-container">
         <!-- Populated by JS: Breakfast, Lunch, Dinner, Snacks, Exercise -->
@@ -617,6 +674,20 @@
   <!-- Toast Notification -->
   <div id="toast-container" class="toast-container" aria-live="polite"></div>
 
+  <aside class="voice-dock" aria-label="רישום קולי">
+    <div class="voice-panel hidden" id="voice-panel">
+      <button type="button" class="voice-dismiss" id="voice-dismiss" aria-label="סגור הודעת מיקרופון">✕</button>
+      <p id="voice-status" role="status" aria-live="polite"></p>
+      <p id="voice-transcript" dir="auto"></p>
+    </div>
+    <button type="button" class="voice-toggle" id="voice-toggle" aria-label="התחל הקלטה ושלח ל-Gemini" aria-pressed="false" aria-controls="voice-panel">
+      <svg viewBox="0 0 24 24" width="23" height="23" aria-hidden="true"><path fill="currentColor" d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3m5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11z"/></svg>
+      <span id="voice-button-label">דברו עם Gemini</span>
+      <span class="voice-indicator" aria-hidden="true"></span>
+    </button>
+  </aside>
+
   <script src="app.js"></script>
+  <script src="voice.js"></script>
 </body>
 </html>

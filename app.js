@@ -145,6 +145,7 @@ let currentDate = getTodayDateString();
 let activeDbCategory = 'all';
 let selectedModalFood = null;
 let unlockedGeminiApiKey = null;
+let isAiAnalysisBusy = false;
 
 function saveState() {
   try {
@@ -443,7 +444,8 @@ function renderWaterTracker() {
   document.getElementById('water-goal-text').textContent = waterGoal;
   document.getElementById('water-goal-val').textContent = waterGoal;
   document.getElementById('water-count-val').textContent = day.water;
-  document.getElementById('water-ml-val').textContent = day.water * 250;
+  document.getElementById('water-ml-val').textContent = Math.round(day.water * 250);
+  renderBodyAvatar();
 
   const grid = document.getElementById('water-glasses-container');
   grid.innerHTML = '';
@@ -462,6 +464,27 @@ function renderWaterTracker() {
     });
     grid.appendChild(glass);
   }
+}
+
+function renderBodyAvatar() {
+  const totals = computeDayTotals(currentDate);
+  const day = ensureDay(currentDate);
+  const foodRatio = totals.eaten / Math.max(state.goals.calories + totals.burned, 1);
+  const waterRatio = day.water / Math.max(state.goals.water, 1);
+  for (const [id, ratio] of [['body-food-fill', foodRatio], ['body-water-fill', waterRatio]]) {
+    const height = Math.max(0, Math.min(ratio, 1)) * 278;
+    const fill = document.getElementById(id);
+    fill.setAttribute('height', String(height));
+    fill.setAttribute('y', String(298 - height));
+  }
+  document.getElementById('body-food-percent').textContent = `${Math.round(foodRatio * 100)}%`;
+  document.getElementById('body-water-percent').textContent = `${Math.round(waterRatio * 100)}%`;
+  document.getElementById('body-figure').classList.toggle('is-active', day.exercises.length > 0);
+  document.getElementById('body-activity-label').textContent = day.exercises.length
+    ? `אימונים ביומן: ${day.exercises.length}`
+    : 'מתקדמים בקצב שלך';
+  document.getElementById('avatar-desc').textContent =
+    `ביום הנבחר: ${totals.eaten} קק"ל נצרכו, ${Math.round(day.water * 250)} מ"ל מים ו-${totals.burned} קק"ל נשרפו.`;
 }
 
 /* ================= RENDER FOOD DATABASE VIEW ================= */
@@ -871,14 +894,25 @@ function buildAiFoodSchema() {
           required: ['name', 'date', 'kind', 'durationMinutes', 'startTime', 'endTime', 'calories']
         }
       },
+      water: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            date: { type: 'string', description: 'תאריך השתייה בפורמט YYYY-MM-DD.' },
+            amountMl: { type: 'integer', description: 'כמות מים במיליליטרים. כוס רגילה = 250 מ"ל.' }
+          },
+          required: ['date', 'amountMl']
+        }
+      },
       note: { type: 'string', description: 'הערה קצרה בעברית על הערכה או על כמויות חסרות.' }
     },
-    required: ['items', 'activities', 'note']
+    required: ['items', 'activities', 'water', 'note']
   };
   }
 
   function validateAiLogDate(value, fallbackDate) {
-    if (!value) return fallbackDate;
+    if (value === undefined) return fallbackDate;
     if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
       throw new Error('ה-AI החזיר תאריך לא תקין. נסה לציין יום או תאריך ברור יותר.');
     }
@@ -900,9 +934,11 @@ function buildAiFoodSchema() {
       !result ||
       !Array.isArray(result.items) ||
       !Array.isArray(result.activities) ||
+      (result.water !== undefined && !Array.isArray(result.water)) ||
       result.items.length > 30 ||
       result.activities.length > 10 ||
-      (result.items.length === 0 && result.activities.length === 0 &&
+      (result.water?.length || 0) > 30 ||
+      (result.items.length === 0 && result.activities.length === 0 && !(result.water?.length) &&
         (typeof result.note !== 'string' || !result.note.trim()))
     ) {
       throw new Error('לא הצלחתי להבין מה לרשום. תאר אוכל או פעילות, ונסה לציין כמויות, משך או תאריך.');
@@ -959,7 +995,13 @@ function buildAiFoodSchema() {
     };
   });
 
-  return { foods, activities };
+  const water = (result.water || []).map((entry) => {
+    if (!entry || !Number.isInteger(entry.amountMl) || entry.amountMl < 1 || entry.amountMl > 10000) {
+      throw new Error('התקבלה כמות מים לא תקינה. ציין מספר כוסות או כמות במ"ל.');
+    }
+    return { date: validateAiLogDate(entry.date, fallbackDate), amountMl: entry.amountMl };
+  });
+  return { foods, activities, water };
 }
 
 function getAiMealLabel(mealKey) {
@@ -1066,7 +1108,7 @@ function cacheAiFoods(items) {
   return newFoods.length;
 }
 
-function renderAiResult(items, activities, note, citations, cachedCount, skipped) {
+function renderAiResult(items, activities, note, citations, cachedCount, skipped, water) {
   const result = document.getElementById('ai-result');
   result.replaceChildren();
 
@@ -1097,6 +1139,19 @@ function renderAiResult(items, activities, note, citations, cachedCount, skipped
       activityList.appendChild(listItem);
     });
     result.appendChild(activityList);
+  }
+
+  if (water.length) {
+    const waterTitle = document.createElement('strong');
+    waterTitle.textContent = 'מים שנוספו ליומן:';
+    result.appendChild(waterTitle);
+    const waterList = document.createElement('ul');
+    water.forEach((entry) => {
+      const listItem = document.createElement('li');
+      listItem.textContent = `${entry.amountMl} מ"ל מים — ${formatAiDate(entry.date)}`;
+      waterList.appendChild(listItem);
+    });
+    result.appendChild(waterList);
   }
 
   if (note) {
@@ -1147,7 +1202,7 @@ function formatAiDate(dateStr) {
   });
 }
 
-async function analyzeMealWithGemini(description) {
+async function analyzeMealWithGemini(description, selectedDate = currentDate) {
   const localFoods = getAllFoods().slice(0, 250).map((food) => ({
     name: food.name,
     portion: food.unit,
@@ -1160,7 +1215,8 @@ async function analyzeMealWithGemini(description) {
   const today = getTodayDateString();
   const prompt = [
     'אתה עוזר יומן אישי שמבין הודעות טבעיות בעברית. קרא את כל ההודעה בהקשר; חלץ כל מאכל שנאכל וכל פעילות גופנית שבוצעה, גם אם הם מתוארים בשיחה מעורבת או בסלנג. אל תמציא אירועים או כמויות.',
-    `לכל מאכל ופעילות קבע שדה date בפורמט YYYY-MM-DD. היום המקומי הוא ${today}; התאריך שנבחר כרגע ביומן הוא ${currentDate}. אם ההודעה אומרת "אתמול", "שלשום", "מחר", יום בשבוע או תאריך מפורש, חשב את התאריך המדויק לכל אירוע ביחס להיום המקומי, גם כשמופיעים כמה תאריכים בהודעה. אם לא צוין תאריך כלל, השתמש בתאריך שנבחר ביומן (${currentDate}).`,
+    `לכל מאכל, שתיית מים ופעילות קבע שדה date בפורמט YYYY-MM-DD. היום המקומי הוא ${today}; התאריך שנבחר כרגע ביומן הוא ${selectedDate}. אם ההודעה אומרת "אתמול", "שלשום", "מחר", יום בשבוע או תאריך מפורש, חשב את התאריך המדויק לכל אירוע ביחס להיום המקומי, גם כשמופיעים כמה תאריכים בהודעה. אם לא צוין תאריך כלל, השתמש בתאריך שנבחר ביומן (${selectedDate}).`,
+    'חלץ שתיית מים למערך water, עם date ו-amountMl. ליטר = 1000 מ"ל; כוס מים ללא גודל מפורש = 250 מ"ל וציין את ההנחה ב-note. בלי כמות, בקש הבהרה ואל תרשום מים. משקאות עם קלוריות שייכים למזון בלבד. אם לא תוארו מים, החזר מערך water ריק.',
     'החזר ערכים תזונתיים לכל הכמות שנאכלה, לא ל-100 גרם אלא אם המשתמש אמר 100 גרם. אם הכמות אינה ברורה, הערך מנה סבירה וציין זאת ב-note.',
     'השתמש במאגר המקומי המצורף לפני כל חיפוש. פריט תואם למאגר יקבל source=local_database, והערכים במאגר גוברים על הערכה.',
     'השתמש ב-Google Search רק לפריט שלא נמצא במאגר, במיוחד מוצר ממותג, מסעדה או פריט ספציפי; אל תחפש פריטים רגילים שאפשר להעריך באופן סביר. כשנעשה חיפוש, קבע source=web_search; אחרת לפריט חדש קבע source=estimate.',
@@ -1217,16 +1273,17 @@ async function analyzeMealWithGemini(description) {
   }
 
   return {
-    ...validateAiLog(parsed, currentDate),
+    ...validateAiLog(parsed, selectedDate),
     note: typeof parsed.note === 'string' ? parsed.note.trim() : '',
     citations: collectGroundingLinks(responseBody)
   };
 }
 
 function setAiAnalysisBusy(isBusy, message = '') {
+  isAiAnalysisBusy = isBusy;
   const button = document.getElementById('ai-food-submit-btn');
   button.disabled = isBusy;
-  button.textContent = isBusy ? '⏳ מנתח את הארוחה...' : '✨ נתח והוסף ליומן';
+  button.textContent = isBusy ? '⏳ מעדכן את היומן...' : '✨ הבן והוסף ליומן';
   const progress = document.getElementById('ai-progress');
   progress.textContent = message;
   progress.classList.toggle('hidden', !message);
@@ -1329,6 +1386,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('ai-food-form').addEventListener('submit', async (e) => {
     e.preventDefault();
+    if (isAiAnalysisBusy) return;
+    const selectedDate = e.currentTarget.dataset.voiceDate || currentDate;
+    delete e.currentTarget.dataset.voiceDate;
     const description = document.getElementById('ai-food-description').value.trim();
     const resultElement = document.getElementById('ai-result');
     if (!description) return;
@@ -1341,7 +1401,10 @@ document.addEventListener('DOMContentLoaded', () => {
     resultElement.classList.add('hidden');
     setAiAnalysisBusy(true, 'מנתח מאכלים ופעילויות, ומשתמש במאגר המקומי; חיפוש Google יופעל רק כשיידרש.');
     try {
-      const analysis = await analyzeMealWithGemini(description);
+      const analysis = await analyzeMealWithGemini(description, selectedDate);
+      const activityResult = prepareAiActivities(analysis.activities);
+      const previousDays = JSON.parse(JSON.stringify(state.days));
+      const previousFoods = state.customFoods.slice();
       analysis.foods.forEach((item) => {
         ensureDay(item.date).meals[item.meal].push({
           id: `entry_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
@@ -1353,20 +1416,27 @@ document.addEventListener('DOMContentLoaded', () => {
           f: item.f
         });
       });
-      const activityResult = prepareAiActivities(analysis.activities);
       activityResult.prepared.forEach((activity) => {
         ensureDay(activity.date).exercises.push(activity);
       });
+      analysis.water.forEach((entry) => {
+        const day = ensureDay(entry.date);
+        day.water = Math.round((day.water + entry.amountMl / 250) * 1000) / 1000;
+      });
       const cachedCount = cacheAiFoods(analysis.foods);
-      if ((analysis.foods.length > 0 || activityResult.prepared.length > 0 || cachedCount > 0) && !saveState()) {
+      const loggedCount = analysis.foods.length + activityResult.prepared.length + analysis.water.length;
+      if ((loggedCount > 0 || cachedCount > 0) && !saveState()) {
+        state.days = previousDays;
+        state.customFoods = previousFoods;
         throw new Error('לא ניתן לשמור את הרישום במכשיר. בדוק את שטח האחסון של הדפדפן ונסה שוב.');
       }
-      if (analysis.foods.length > 0 || activityResult.prepared.length > 0) {
+      if (loggedCount > 0) {
         document.getElementById('ai-food-description').value = '';
       }
       const loggedDates = [...new Set([
         ...analysis.foods.map((item) => item.date),
-        ...activityResult.prepared.map((activity) => activity.date)
+        ...activityResult.prepared.map((activity) => activity.date),
+        ...analysis.water.map((entry) => entry.date)
       ])];
       if (loggedDates.length === 1) {
         currentDate = loggedDates[0];
@@ -1378,10 +1448,11 @@ document.addEventListener('DOMContentLoaded', () => {
         analysis.note,
         analysis.citations,
         cachedCount,
-        activityResult.skipped
+        activityResult.skipped,
+        analysis.water
       );
-      if (analysis.foods.length > 0 || activityResult.prepared.length > 0) {
-        showToast(`נוספו ליומן ${analysis.foods.length + activityResult.prepared.length} פריטים`);
+      if (loggedCount > 0) {
+        showToast(`נוספו ליומן ${loggedCount} פריטים`);
       }
     } catch (error) {
       console.error('AI food logging failed:', error);
@@ -1443,7 +1514,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('water-minus-btn').addEventListener('click', () => {
     const day = ensureDay(currentDate);
     if (day.water > 0) {
-      day.water -= 1;
+      day.water = Math.max(0, day.water - 1);
       saveState();
       renderWaterTracker();
     }
