@@ -1,7 +1,4 @@
 const STORAGE_KEY = 'caloritrack_state_v2';
-const AI_KEY_STORAGE_KEY = 'caloritrack_gemini_key_v1';
-const GEMINI_MODEL = 'gemini-3.8-flash';
-const ENCRYPTION_ITERATIONS = 310000;
 const MEAL_KEYS = ['breakfast', 'lunch', 'dinner', 'snacks'];
 const FOOD_CATEGORIES = [
   'חלבונים ובשר',
@@ -104,9 +101,9 @@ function getDefaultDayLog() {
   };
 }
 
-function loadAppState() {
+function loadAppState(storageKey = STORAGE_KEY) {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(storageKey);
     if (raw) {
       const parsed = JSON.parse(raw);
       return {
@@ -140,20 +137,17 @@ function loadAppState() {
   };
 }
 
-const state = loadAppState();
+let state;
+let activeAccountId = null;
 let currentDate = getTodayDateString();
 let activeDbCategory = 'all';
 let selectedModalFood = null;
-let unlockedGeminiApiKey = null;
-let aiKeyReady = Promise.resolve();
-let aiKeyLoading = false;
-let aiKeyStorageError = '';
-let aiKeyChanging = false;
 let isAiAnalysisBusy = false;
 
 function saveState() {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    if (activeAccountId === null) throw new Error('אין חשבון מחובר לשמירת נתונים.');
+    localStorage.setItem(`${STORAGE_KEY}_user_${activeAccountId}`, JSON.stringify(state));
     return true;
   } catch (err) {
     console.error('Failed saving state:', err);
@@ -716,136 +710,9 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
-function getStoredAiKeyRecord() {
-  const raw = localStorage.getItem(AI_KEY_STORAGE_KEY);
-  if (!raw) return null;
-  const record = JSON.parse(raw);
-  if (!record || typeof record.salt !== 'string' || typeof record.iv !== 'string' || typeof record.ciphertext !== 'string') {
-    throw new Error('רשומת מפתח ה-AI השמורה אינה תקינה. מחק אותה והגדר מפתח חדש.');
-  }
-  return record;
-}
-
-function setAiKeyStatus(message, isError = false) {
-  const status = document.getElementById('ai-key-status');
-  status.textContent = message;
-  status.classList.toggle('ai-error', isError);
-}
-
 function renderAiKeySettings() {
-  const setupForm = document.getElementById('ai-key-setup-form');
-  const unlockForm = document.getElementById('ai-key-unlock-form');
-  const keyActions = document.getElementById('ai-key-actions');
-  let storedRecord;
-
-  try {
-    storedRecord = getStoredAiKeyRecord();
-  } catch (error) {
-    setupForm.classList.remove('hidden');
-    unlockForm.classList.add('hidden');
-    keyActions.classList.remove('hidden');
-    setAiKeyStatus(error.message, true);
-    return;
-  }
-
-  if (aiKeyLoading) {
-    setAiKeyStatus('טוען את מפתח Gemini השמור במכשיר...');
-  } else if (aiKeyStorageError) {
-    setAiKeyStatus(aiKeyStorageError, true);
-  } else if (!window.isSecureContext || !window.crypto?.subtle) {
-    setAiKeyStatus('אחסון מפתח מוצפן זמין רק בחיבור מאובטח (HTTPS או localhost).', true);
-  } else if (unlockedGeminiApiKey) {
-    setAiKeyStatus('מפתח Gemini נשמר מוצפן ומוכן לשימוש. הוא ייטען אוטומטית גם בהפעלה הבאה.');
-  } else if (storedRecord) {
-    setAiKeyStatus('נמצא מפתח מהגרסה הקודמת. הזן את הסיסמה פעם אחת כדי להעביר אותו לשמירה אוטומטית, או הזן מחדש את מפתח ה-API.');
-  } else {
-    setAiKeyStatus('עדיין לא הוגדר מפתח Gemini במכשיר הזה.');
-  }
-
-  setupForm.classList.toggle('hidden', Boolean(unlockedGeminiApiKey));
-  unlockForm.classList.toggle('hidden', !storedRecord || Boolean(unlockedGeminiApiKey));
-  keyActions.classList.toggle('hidden', !storedRecord && !unlockedGeminiApiKey && !aiKeyStorageError);
-}
-
-async function restoreDeviceApiKey() {
-  aiKeyLoading = true;
-  renderAiKeySettings();
-  try {
-    unlockedGeminiApiKey = await deviceKeyStore.load();
-    if (unlockedGeminiApiKey) localStorage.removeItem(AI_KEY_STORAGE_KEY);
-  } catch (error) {
-    console.error('Failed restoring device Gemini key:', error);
-    aiKeyStorageError = 'לא ניתן לטעון את המפתח השמור. בדוק הרשאות אחסון או שמור מפתח מחדש.';
-    showToast(aiKeyStorageError);
-  } finally {
-    aiKeyLoading = false;
-    renderAiKeySettings();
-  }
-}
-
-function bytesToBase64(bytes) {
-  let binary = '';
-  bytes.forEach((byte) => {
-    binary += String.fromCharCode(byte);
-  });
-  return btoa(binary);
-}
-
-function base64ToBytes(value) {
-  return Uint8Array.from(atob(value), (char) => char.charCodeAt(0));
-}
-
-async function deriveEncryptionKey(password, salt) {
-  const passwordKey = await window.crypto.subtle.importKey(
-    'raw',
-    new TextEncoder().encode(password),
-    'PBKDF2',
-    false,
-    ['deriveKey']
-  );
-
-  return window.crypto.subtle.deriveKey(
-    {
-      name: 'PBKDF2',
-      salt,
-      iterations: ENCRYPTION_ITERATIONS,
-      hash: 'SHA-256'
-    },
-    passwordKey,
-    { name: 'AES-GCM', length: 256 },
-    false,
-    ['encrypt', 'decrypt']
-  );
-}
-
-async function encryptApiKey(apiKey, password) {
-  const salt = window.crypto.getRandomValues(new Uint8Array(16));
-  const iv = window.crypto.getRandomValues(new Uint8Array(12));
-  const encryptionKey = await deriveEncryptionKey(password, salt);
-  const ciphertext = await window.crypto.subtle.encrypt(
-    { name: 'AES-GCM', iv },
-    encryptionKey,
-    new TextEncoder().encode(apiKey)
-  );
-
-  return {
-    salt: bytesToBase64(salt),
-    iv: bytesToBase64(iv),
-    ciphertext: bytesToBase64(new Uint8Array(ciphertext))
-  };
-}
-
-async function decryptApiKey(record, password) {
-  const salt = base64ToBytes(record.salt);
-  const iv = base64ToBytes(record.iv);
-  const ciphertext = base64ToBytes(record.ciphertext);
-  const encryptionKey = await deriveEncryptionKey(password, salt);
-  const plaintext = await window.crypto.subtle.decrypt(
-    { name: 'AES-GCM', iv },
-    encryptionKey,
-    ciphertext
-  );
-  return new TextDecoder().decode(plaintext);
+  document.getElementById('gemini-server-status').textContent =
+    'Gemini זמין דרך השרת. מפתח ה-API המשותף מוצפן בשרת ואינו נשלח לדפדפן.';
 }
 
 function collectGroundingLinks(response) {
@@ -1254,38 +1121,10 @@ async function analyzeMealWithGemini(description, selectedDate = currentDate) {
     `תיאור המשתמש: ${description}`
   ].join('\n\n');
 
-  const response = await fetch('https://generativelanguage.googleapis.com/v1beta/interactions', {
+  const responseBody = await window.serverApi('/api/gemini/analyze', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-goog-api-key': unlockedGeminiApiKey
-    },
-    body: JSON.stringify({
-      model: GEMINI_MODEL,
-      input: prompt,
-      tools: [{ type: 'google_search' }],
-      response_format: {
-        type: 'text',
-        mime_type: 'application/json',
-        schema: buildAiFoodSchema()
-      }
-    })
+    body: JSON.stringify({ input: prompt })
   });
-
-  const responseText = await response.text();
-  let responseBody;
-  try {
-    responseBody = responseText ? JSON.parse(responseText) : {};
-  } catch {
-    throw new Error('Gemini החזיר תשובה לא תקינה. בדוק שהמודל והמפתח מוגדרים כראוי.');
-  }
-  if (!response.ok) {
-    const apiMessage = responseBody.error?.message;
-    if (response.status === 401 || response.status === 403) {
-      throw new Error('Gemini דחה את מפתח ה-API. בדוק את המפתח ואת ההרשאות שלו בהגדרות.');
-    }
-    throw new Error(apiMessage || `בקשת Gemini נכשלה (HTTP ${response.status}).`);
-  }
 
   const text = extractInteractionText(responseBody);
   if (!text) throw new Error('Gemini לא החזיר תוצאות לניתוח הארוחה.');
@@ -1326,108 +1165,30 @@ function renderAll() {
 }
 
 /* ================= EVENT LISTENERS ================= */
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  const account = await window.serverAuthReady;
+  if (!account) return;
+  activeAccountId = account.id;
+  state = loadAppState(`${STORAGE_KEY}_user_${activeAccountId}`);
+  window.caloriTrack = {
+    getState: () => JSON.parse(JSON.stringify(state)),
+    replaceState(data) {
+      if (!data || typeof data !== 'object' || !data.goals || !data.days
+          || typeof data.days !== 'object' || !Array.isArray(data.customFoods)
+          || !Array.isArray(data.weights)) {
+        throw new Error('מבנה הגיבוי אינו תקין.');
+      }
+      state = {
+        goals: data.goals,
+        days: data.days,
+        customFoods: data.customFoods,
+        weights: data.weights
+      };
+      if (!saveState()) throw new Error('לא ניתן לשמור את השחזור במכשיר.');
+      renderAll();
+    }
+  };
   renderAll();
-
-  // Gemini key encryption and unlock
-  document.getElementById('ai-key-setup-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    if (aiKeyChanging) return;
-    if (!window.isSecureContext || !window.crypto?.subtle) {
-      setAiKeyStatus('הצפנת מפתח דורשת HTTPS או localhost ודפדפן התומך ב-Web Crypto.', true);
-      return;
-    }
-
-    const apiKey = document.getElementById('gemini-api-key-input').value.trim();
-    if (!apiKey) {
-      setAiKeyStatus('יש להזין מפתח API.', true);
-      return;
-    }
-
-    const submitButton = document.getElementById('save-ai-key-btn');
-    aiKeyChanging = true;
-    submitButton.disabled = true;
-    try {
-      await aiKeyReady;
-      await deviceKeyStore.save(apiKey);
-      localStorage.removeItem(AI_KEY_STORAGE_KEY);
-      unlockedGeminiApiKey = apiKey;
-      aiKeyStorageError = '';
-      e.target.reset();
-      renderAiKeySettings();
-      showToast('מפתח Gemini הוצפן ונשמר במכשיר');
-    } catch (error) {
-      console.error('Failed to encrypt or save Gemini API key:', error);
-      setAiKeyStatus('לא ניתן להצפין או לשמור את המפתח בדפדפן. בדוק את הגדרות האחסון ונסה שוב.', true);
-    } finally {
-      aiKeyChanging = false;
-      submitButton.disabled = false;
-    }
-  });
-
-  document.getElementById('ai-key-unlock-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    if (aiKeyChanging) return;
-    aiKeyChanging = true;
-    const password = document.getElementById('ai-unlock-password').value;
-    const button = e.currentTarget.querySelector('button');
-    button.disabled = true;
-    try {
-      await aiKeyReady;
-      const record = getStoredAiKeyRecord();
-      if (!record) throw new Error('לא נמצא מפתח Gemini מוצפן במכשיר.');
-      const apiKey = await decryptApiKey(record, password);
-      if (!apiKey) throw new Error('מפתח Gemini המפוענח ריק.');
-      await deviceKeyStore.save(apiKey);
-      localStorage.removeItem(AI_KEY_STORAGE_KEY);
-      unlockedGeminiApiKey = apiKey;
-      aiKeyStorageError = '';
-      e.target.reset();
-      renderAiKeySettings();
-      showToast('המפתח הועבר לשמירה אוטומטית. לא תידרש סיסמה בהפעלה הבאה.');
-    } catch (error) {
-      console.error('Failed to unlock Gemini API key:', error);
-      setAiKeyStatus(
-        error.message === 'לא נמצא מפתח Gemini מוצפן במכשיר.'
-          ? error.message
-          : 'לא ניתן להעביר את המפתח. בדוק את הסיסמה ואת הרשאות האחסון. המפתח הישן לא נמחק אם השמירה נכשלה.',
-        true
-      );
-    } finally {
-      aiKeyChanging = false;
-      button.disabled = false;
-    }
-  });
-
-  document.getElementById('replace-ai-key-btn').addEventListener('click', () => {
-    document.getElementById('ai-key-setup-form').classList.remove('hidden');
-    document.getElementById('gemini-api-key-input').focus();
-  });
-
-  document.getElementById('remove-ai-key-btn').addEventListener('click', async (e) => {
-    if (aiKeyChanging) return;
-    if (!window.confirm('למחוק את מפתח Gemini המוצפן מהמכשיר?')) return;
-    aiKeyChanging = true;
-    const button = e.currentTarget;
-    button.disabled = true;
-    try {
-      await aiKeyReady;
-      await deviceKeyStore.remove();
-      localStorage.removeItem(AI_KEY_STORAGE_KEY);
-      unlockedGeminiApiKey = null;
-      aiKeyStorageError = '';
-      renderAiKeySettings();
-      showToast('מפתח Gemini המוצפן נמחק מהמכשיר');
-    } catch (error) {
-      console.error('Failed to remove encrypted Gemini API key:', error);
-      setAiKeyStatus('לא ניתן למחוק את המפתח מהאחסון המקומי.', true);
-    } finally {
-      aiKeyChanging = false;
-      button.disabled = false;
-    }
-  });
-
-  aiKeyReady = restoreDeviceApiKey();
 
   document.getElementById('ai-food-form').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -1437,14 +1198,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const description = document.getElementById('ai-food-description').value.trim();
     const resultElement = document.getElementById('ai-result');
     if (!description) return;
-    await aiKeyReady;
-    if (isAiAnalysisBusy) return;
-    if (!unlockedGeminiApiKey) {
-      resultElement.textContent = 'כדי להשתמש ברישום AI, הגדר או פתח את מפתח Gemini בהגדרות AI ואבטחה.';
-      resultElement.classList.remove('hidden');
-      return;
-    }
-
     resultElement.classList.add('hidden');
     setAiAnalysisBusy(true, 'מנתח מאכלים ופעילויות, ומשתמש במאגר המקומי; חיפוש Google יופעל רק כשיידרש.');
     try {
@@ -1863,8 +1616,4 @@ document.addEventListener('DOMContentLoaded', () => {
     showToast('נתוני היום הנוכחי אופסו');
   });
 
-  // Register Service Worker for PWA
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js').catch(() => {});
-  }
 });

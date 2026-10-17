@@ -28,8 +28,8 @@ import org.json.JSONObject;
 import java.util.ArrayList;
 
 public final class MainActivity extends Activity {
-    private static final String APP_HOST = "giladperetz1978.github.io";
-    private static final String APP_URL = "https://giladperetz1978.github.io/clr/";
+    private static final String APP_HOST = "caloritrack.144.91.96.77.sslip.io";
+    private static final String APP_URL = "https://caloritrack.144.91.96.77.sslip.io/";
     private static final int FILE_CHOOSER_REQUEST = 501;
     private static final int MICROPHONE_REQUEST = 502;
 
@@ -147,7 +147,7 @@ public final class MainActivity extends Activity {
         String path = uri.getPath();
         return "https".equals(uri.getScheme()) && APP_HOST.equals(uri.getHost())
                 && (uri.getPort() == -1 || uri.getPort() == 443)
-                && path != null && (path.equals("/clr") || path.startsWith("/clr/"));
+                && path != null && path.startsWith("/");
     }
 
     private void handleVoiceCommand(Uri uri) {

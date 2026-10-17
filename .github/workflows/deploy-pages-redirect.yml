@@ -1,4 +1,4 @@
-name: Deploy static content to Pages
+name: Redirect legacy GitHub Pages to Contabo
 
 on:
   push:
@@ -16,7 +16,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  deploy:
+  deploy-redirect:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -28,24 +28,17 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
-      - name: Test app behavior
-        run: node --test
-
-      - name: Prepare public files
+      - name: Prepare redirect page
         run: |
           mkdir _site
-          cp index.html style.css app.js voice.js key-store.js sw.js manifest.json icon-192.png icon-512.png CaloriTrack-debug.apk _site/
+          cp legacy-pages/index.html _site/index.html
+          cp legacy-pages/index.html _site/404.html
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: _site
 
-      - name: Deploy to GitHub Pages
+      - name: Deploy redirect
         id: deployment
         uses: actions/deploy-pages@v4

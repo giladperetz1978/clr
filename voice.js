@@ -80,8 +80,8 @@
       message(`התמלול ארוך מדי. קצר את הטקסט ל-${input.maxLength} תווים ושלח ידנית.`, true);
       return;
     }
-    if (!unlockedGeminiApiKey || isAiAnalysisBusy) {
-      message('הטקסט נשמר. פתח את מפתח Gemini או המתן לסיום הבקשה הנוכחית, ושלח ידנית.', true);
+    if (!window.serverAuthUser || isAiAnalysisBusy) {
+      message('הטקסט נשמר. התחבר לחשבון או המתן לסיום הבקשה הנוכחית, ושלח ידנית.', true);
       return;
     }
     form.dataset.voiceDate = current.date;
@@ -154,8 +154,8 @@
   dismiss.addEventListener('click', () => panel.classList.add('hidden'));
 
   button.addEventListener('click', async () => {
-    if (aiKeyLoading) {
-      message('טוען את מפתח Gemini השמור. לחץ שוב בעוד רגע.');
+    if (!window.serverAuthUser) {
+      message('יש להתחבר לחשבון לפני שימוש ברישום קולי.', true);
       return;
     }
     if (session) {
@@ -165,11 +165,6 @@
     transcript.textContent = '';
     if (isAiAnalysisBusy) {
       message('Gemini עדיין מעבד את ההודעה הקודמת. המתן לסיום.', true);
-      return;
-    }
-    if (!unlockedGeminiApiKey) {
-      document.querySelector('[data-view="settings"]').click();
-      message('לפני ההקלטה יש להגדיר או לפתוח את מפתח Gemini בהגדרות.', true);
       return;
     }
     const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;

@@ -38,6 +38,79 @@ body {
   padding-bottom: calc(88px + env(safe-area-inset-bottom));
 }
 
+.auth-pending .app-shell,
+.auth-pending .voice-dock,
+.auth-required .app-shell,
+.auth-required .voice-dock {
+  display: none;
+}
+
+.auth-gate {
+  display: none;
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  align-items: center;
+  justify-content: center;
+  overflow-y: auto;
+  padding: max(20px, env(safe-area-inset-top)) 16px max(20px, env(safe-area-inset-bottom));
+  background: radial-gradient(circle at top right, #132a3e 0%, #0f172a 55%, #090e1a 100%);
+}
+
+.auth-pending .auth-gate,
+.auth-required .auth-gate,
+.authenticated .auth-gate {
+  display: flex;
+}
+
+.auth-gate.hidden {
+  display: none;
+}
+
+.auth-card {
+  width: min(100%, 430px);
+  text-align: center;
+}
+
+.auth-card h1 {
+  margin-top: 12px;
+  font-size: 1.7rem;
+}
+
+.auth-card .stacked-form {
+  text-align: right;
+  margin-top: 20px;
+}
+
+.auth-private-note {
+  margin-top: 14px;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.account-chip {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.admin-users-list {
+  list-style: none;
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.admin-users-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-sm);
+  background: rgba(15, 23, 42, 0.42);
+}
+
 .app-shell {
   --shell-spacing: 16px;
   max-width: 960px;

@@ -1,0 +1,34 @@
+[Unit]
+Description=CaloriTrack account and Gemini API service
+After=network.target
+
+[Service]
+Type=simple
+User=caloritrack
+Group=caloritrack
+WorkingDirectory=/var/www/caloritrack/current
+StateDirectory=caloritrack
+StateDirectoryMode=0700
+Environment=NODE_ENV=production
+Environment=PORT=38741
+Environment=APP_ORIGIN=https://caloritrack.144.91.96.77.sslip.io
+Environment=DATABASE_PATH=/var/lib/caloritrack/accounts.sqlite
+LoadCredentialEncrypted=gemini-api-key:/etc/credstore.encrypted/caloritrack-gemini-api-key
+LoadCredentialEncrypted=backup-encryption-key:/etc/credstore.encrypted/caloritrack-backup-encryption-key
+ExecStart=/usr/bin/node server/index.js
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/var/lib/caloritrack
+
+[Install]
+WantedBy=multi-user.target

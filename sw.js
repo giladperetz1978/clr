@@ -1,11 +1,11 @@
-const CACHE_NAME = 'caloritrack-v4';
+const CACHE_NAME = 'caloritrack-v5';
 const ASSETS = [
   './',
   './index.html',
   './style.css',
+  './auth.js',
   './app.js',
   './voice.js',
-  './key-store.js',
   './manifest.json',
   './icon-192.png',
   './icon-512.png'
@@ -35,6 +35,11 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
+  const requestUrl = new URL(event.request.url);
+  if (requestUrl.origin !== self.location.origin || requestUrl.pathname.startsWith('/api/')) {
+    event.respondWith(fetch(event.request));
+    return;
+  }
 
   event.respondWith(
     fetch(event.request)

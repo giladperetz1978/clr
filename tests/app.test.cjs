@@ -66,6 +66,7 @@ function setup({ voice = false, native = false, supported = true, locked = false
   const window = {
     isSecureContext: true,
     caloriTrackNativeVoice: native,
+    serverAuthUser: locked ? null : { id: 1 },
     location: { href: '' },
     SpeechRecognition: supported ? Recognition : undefined,
     addEventListener: (name, handler) => listeners.set(`window:${name}`, handler)
@@ -80,7 +81,7 @@ function setup({ voice = false, native = false, supported = true, locked = false
     clearTimeout: (id) => timers.delete(id)
   });
   vm.runInContext(fs.readFileSync(path.join(root, 'app.js'), 'utf8'), context);
-  vm.runInContext(`currentDate = '2026-10-17'; unlockedGeminiApiKey = ${locked ? 'null' : "'test-key'"};`, context);
+  vm.runInContext(`state = {goals: {calories: 2000, protein: 135, carbs: 220, fat: 65, water: 10}, customFoods: [], days: {}, weights: []}; currentDate = '2026-10-17';`, context);
   if (voice) vm.runInContext(fs.readFileSync(path.join(root, 'voice.js'), 'utf8'), context);
   return {
     context, element, document, window, submissions, recognizers, errors,
@@ -111,12 +112,21 @@ test('HTML has unique IDs and all static script targets exist', () => {
   const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
   const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
   assert.equal(new Set(ids).size, ids.length);
-  for (const file of ['app.js', 'voice.js']) {
+  for (const file of ['app.js', 'auth.js', 'voice.js']) {
     const script = fs.readFileSync(path.join(root, file), 'utf8');
     for (const [, id] of script.matchAll(/getElementById\('([^']+)'\)/g)) {
       assert.ok(ids.includes(id) || id === 'inline-add-ex-btn', `${file}: ${id}`);
     }
   }
+});
+
+test('Gemini key is server-managed, and local data is account scoped', () => {
+  const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+  const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+  assert.match(app, /\/api\/gemini\/analyze/);
+  assert.match(app, /\$\{STORAGE_KEY\}_user_\$\{activeAccountId\}/);
+  assert.doesNotMatch(app, /x-goog-api-key|unlockedGeminiApiKey/);
+  assert.doesNotMatch(html, /gemini-api-key-input/);
 });
 
 test('Gemini schema covers dates for food, water and exercise', () => {

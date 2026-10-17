@@ -14,7 +14,27 @@
   <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body class="auth-pending">
+  <main id="auth-gate" class="auth-gate">
+    <section class="card auth-card">
+      <div class="brand-logo" aria-hidden="true">🥗</div>
+      <h1>קלוריטראק</h1>
+      <p class="card-subtitle">התחברות לחשבון האישי</p>
+      <form id="login-form" class="stacked-form">
+        <div class="form-row">
+          <label for="login-username">שם משתמש</label>
+          <input type="text" id="login-username" name="username" autocomplete="username" maxlength="32" required>
+        </div>
+        <div class="form-row">
+          <label for="login-password">סיסמה</label>
+          <input type="password" id="login-password" name="password" autocomplete="current-password" required>
+        </div>
+        <button type="submit" class="primary-btn full-width" id="login-button">התחבר</button>
+      </form>
+      <p id="login-status" class="ai-key-status" role="status" aria-live="polite"></p>
+      <p class="auth-private-note">אין הרשמה עצמית. מנהל המערכת ייצור עבורך חשבון.</p>
+    </section>
+  </main>
   <div class="app-shell">
     <!-- Top Header -->
     <header class="top-header">
@@ -37,6 +57,7 @@
           </button>
           <input type="date" id="date-picker-input" aria-label="בחירת תאריך">
         </div>
+        <div class="account-chip"><span id="header-account-name"></span></div>
         <button type="button" class="icon-btn" id="next-day-btn" title="יום הבא" aria-label="יום הבא">
           <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M15.41 16.59L10.83 12l4.58-4.59L14 6l-6 6 6 6 1.41-1.41z"/></svg>
         </button>
@@ -460,32 +481,63 @@
       <section class="card ai-settings-card">
         <div class="card-header">
           <div>
-            <h2>🔐 הגדרות AI ואבטחת מפתח</h2>
-            <p class="card-subtitle">הזן כאן את מפתח Gemini האישי שלך. המפתח נשמר מוצפן בדפדפן הזה בלבד.</p>
+            <h2>✨ Gemini משותף</h2>
+            <p class="card-subtitle">השימוש ב-AI מאובטח דרך השרת. מפתח ה-API נשאר מוצפן בשרת ואינו מגיע לדפדפן.</p>
           </div>
         </div>
         <div class="ai-security-note">
-          שמירה חד־פעמית: מפתח Gemini מוצפן ב-AES-GCM ונטען אוטומטית בכל פתיחה, בלי סיסמה. מפתח ההצפנה נשמר באחסון הדפדפן כ-CryptoKey שאינו ניתן לייצוא. זו אינה נעילה בסיסמה: מי שיש לו גישה לפרופיל הדפדפן או לאפליקציה במכשיר יכול להשתמש ב-AI. השתמש בפרופילים נפרדים במכשיר משותף. המפתח נשלח רק ל-Google לצורך בקשות Gemini. מחיקת נתוני האתר או הסרת האפליקציה עלולות למחוק את המפתח השמור.
+          היומן האישי נשמר במכשיר זה ונגיש רק לאחר התחברות לחשבון. גיבוי לשרת הוא אופציונלי, מוצפן ומבודד לפי חשבון; אפשר לשחזר אותו למכשיר אחר. אין הרשמה עצמית.
         </div>
-        <form id="ai-key-setup-form" class="stacked-form">
-          <div class="form-row">
-            <label for="gemini-api-key-input">מפתח Gemini API אישי</label>
-            <input type="password" id="gemini-api-key-input" autocomplete="off" placeholder="הדבק כאן את מפתח ה-API שלך" required>
+        <p class="ai-key-status" id="gemini-server-status" role="status">Gemini מחובר דרך השרת.</p>
+      </section>
+
+      <section class="card">
+        <div class="card-header">
+          <div>
+            <h2>👤 החשבון שלי</h2>
+            <p class="card-subtitle"><strong id="account-name"></strong> · <span id="account-role"></span></p>
           </div>
-          <button type="submit" class="primary-btn full-width" id="save-ai-key-btn">🔒 שמור פעם אחת במכשיר</button>
-        </form>
-        <form id="ai-key-unlock-form" class="stacked-form hidden">
-          <div class="form-row">
-            <label for="ai-unlock-password">סיסמת ההצפנה שלך</label>
-            <input type="password" id="ai-unlock-password" autocomplete="current-password" required>
-          </div>
-          <button type="submit" class="primary-btn full-width">🔓 העבר לשמירה אוטומטית — פעם אחת בלבד</button>
-        </form>
-        <div class="ai-key-status" id="ai-key-status" role="status" aria-live="polite"></div>
-        <div class="ai-key-actions hidden" id="ai-key-actions">
-          <button type="button" class="secondary-btn btn-sm" id="replace-ai-key-btn">החלף מפתח</button>
-          <button type="button" class="danger-btn btn-sm" id="remove-ai-key-btn">🗑️ מחק מפתח מוצפן מהמכשיר</button>
+          <button type="button" class="secondary-btn btn-sm" id="logout-button">התנתק</button>
         </div>
+        <p class="card-subtitle">נתוני היומן נשארים במכשיר ומבודדים לפי החשבון שלך. שרת הגיבוי שומר עותק מוצפן משלך בלבד.</p>
+      </section>
+
+      <section class="card">
+        <div class="card-header">
+          <div>
+            <h2>☁️ גיבוי אישי מוצפן</h2>
+            <p class="card-subtitle">הגיבוי נשלח רק בלחיצה ונשמר מוצפן בשרת עבור החשבון הזה. השחזור מחליף את הנתונים המקומיים.</p>
+          </div>
+        </div>
+        <div class="quick-actions-bar">
+          <button type="button" class="primary-btn" id="backup-to-server-button">שמור גיבוי מוצפן בשרת</button>
+          <button type="button" class="secondary-btn" id="restore-from-server-button">שחזר גיבוי מהשרת</button>
+        </div>
+        <p class="ai-key-status" id="backup-status" role="status" aria-live="polite"></p>
+      </section>
+
+      <section class="card hidden" id="admin-users-card">
+        <div class="card-header">
+          <div>
+            <h2>🛡️ ניהול משתמשים</h2>
+            <p class="card-subtitle">רק מנהל יכול ליצור חשבונות. הסיסמה נמסרת למשתמש בערוץ מאובטח.</p>
+          </div>
+        </div>
+        <form id="create-user-form" class="stacked-form">
+          <div class="form-row-2">
+            <div class="form-row">
+              <label for="new-username">שם משתמש (אנגלית/ספרות)</label>
+              <input type="text" id="new-username" autocomplete="off" minlength="3" maxlength="32" pattern="[A-Za-z0-9][A-Za-z0-9._-]{2,31}" required>
+            </div>
+            <div class="form-row">
+              <label for="new-user-password">סיסמה זמנית (12 תווים לפחות)</label>
+              <input type="password" id="new-user-password" autocomplete="new-password" minlength="12" maxlength="256" required>
+            </div>
+          </div>
+          <button type="submit" class="primary-btn" id="create-user-button">צור חשבון משתמש</button>
+        </form>
+        <p class="ai-key-status" id="admin-status" role="status" aria-live="polite"></p>
+        <ul class="admin-users-list" id="admin-users-list"></ul>
       </section>
     </main>
   </div>
@@ -677,7 +729,7 @@
     </button>
   </aside>
 
-  <script src="key-store.js"></script>
+  <script src="auth.js"></script>
   <script src="app.js"></script>
   <script src="voice.js"></script>
 </body>
