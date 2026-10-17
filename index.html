@@ -154,15 +154,15 @@
       <section class="card ai-log-card">
         <div class="card-header">
           <div>
-            <h2>✨ רישום ארוחה בעזרת AI</h2>
-            <p class="card-subtitle">תאר מה אכלת או איזו פעילות עשית. ה-AI יזהה ארוחות ואימונים, יחשב ערכים וישייך אותם ליומן.</p>
+            <h2>✨ צ'אט לרישום אוכל ופעילות</h2>
+            <p class="card-subtitle">כתוב בשפה חופשית על אוכל, אימון או תאריך — ה-AI יבין את ההקשר וישייך כל דבר ליום המתאים.</p>
           </div>
           <span class="ai-model-badge">Gemini 3.8 Flash</span>
         </div>
         <form id="ai-food-form" class="stacked-form">
-          <label for="ai-food-description">מה אכלת היום?</label>
-          <textarea id="ai-food-description" rows="3" maxlength="1200" placeholder="לדוגמה: בבוקר אכלתי שתי ביצים ולחם. בצהריים אכלתי עוף ואורז. שיחקתי 3 על 3 בכדורסל משעה 15 עד 17, ואחר כך רצתי 30 דקות." required></textarea>
-          <button type="submit" class="primary-btn full-width" id="ai-food-submit-btn">✨ נתח והוסף ליומן</button>
+          <label for="ai-food-description">מה תרצה לרשום ביומן?</label>
+          <textarea id="ai-food-description" rows="3" maxlength="1200" placeholder="לדוגמה: אתמול בבוקר אכלתי שתי ביצים ולחם. ב-15 באוקטובר שיחקתי 3 על 3 בכדורסל מ-15 עד 17, והיום רצתי 30 דקות." required></textarea>
+          <button type="submit" class="primary-btn full-width" id="ai-food-submit-btn">✨ הבן והוסף ליומן</button>
         </form>
         <div class="ai-progress hidden" id="ai-progress" role="status" aria-live="polite"></div>
         <div class="ai-result hidden" id="ai-result" aria-live="polite"></div>

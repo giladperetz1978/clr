@@ -838,6 +838,7 @@ function buildAiFoodSchema() {
           type: 'object',
           properties: {
             name: { type: 'string', description: 'שם המאכל בעברית.' },
+            date: { type: 'string', description: 'תאריך צריכת המאכל בפורמט YYYY-MM-DD.' },
             portion: { type: 'string', description: 'כמות שנאכלה ותיאור המנה.' },
             calories: { type: 'integer', description: 'סך הקלוריות בכמות שנאכלה.' },
             protein: { type: 'number', description: 'גרם חלבון בכמות שנאכלה.' },
@@ -851,7 +852,7 @@ function buildAiFoodSchema() {
               description: 'השתמש ב-local_database לפריט מהמאגר; web_search למידע שנמצא בחיפוש; estimate להערכה.'
             }
           },
-          required: ['name', 'portion', 'calories', 'protein', 'carbs', 'fat', 'meal', 'category', 'source']
+          required: ['name', 'date', 'portion', 'calories', 'protein', 'carbs', 'fat', 'meal', 'category', 'source']
         }
       },
       activities: {
@@ -860,13 +861,14 @@ function buildAiFoodSchema() {
           type: 'object',
           properties: {
             name: { type: 'string', description: 'סוג הפעילות בעברית.' },
+            date: { type: 'string', description: 'תאריך הפעילות בפורמט YYYY-MM-DD.' },
             kind: { type: 'string', enum: ['basketball_3v3', 'other'], description: 'basketball_3v3 רק למשחק 3 על 3 בכדורסל; אחרת other.' },
             durationMinutes: { type: 'integer', description: 'משך הפעילות בדקות. אין להמציא משך שלא תואר.' },
             startTime: { type: 'string', description: 'שעת התחלה בפורמט HH:MM; בכדורסל 3 על 3 נדרשת שעה שנאמרה במפורש, אחרת מחרוזת ריקה.' },
             endTime: { type: 'string', description: 'שעת סיום בפורמט HH:MM; בכדורסל 3 על 3 נדרשת שעה שנאמרה במפורש, אחרת מחרוזת ריקה.' },
             calories: { type: 'integer', description: 'קלוריות שנשרפו. בכדורסל 3 על 3 יש להחזיר 0; האפליקציה מחשבת לפי שעות הפעילות.' }
           },
-          required: ['name', 'kind', 'durationMinutes', 'startTime', 'endTime', 'calories']
+          required: ['name', 'date', 'kind', 'durationMinutes', 'startTime', 'endTime', 'calories']
         }
       },
       note: { type: 'string', description: 'הערה קצרה בעברית על הערכה או על כמויות חסרות.' }
@@ -875,16 +877,35 @@ function buildAiFoodSchema() {
   };
   }
 
-  function validateAiFoodItems(result) {
+  function validateAiLogDate(value, fallbackDate) {
+    if (!value) return fallbackDate;
+    if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      throw new Error('ה-AI החזיר תאריך לא תקין. נסה לציין יום או תאריך ברור יותר.');
+    }
+
+    const [year, month, day] = value.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
+    if (
+      date.getFullYear() !== year ||
+      date.getMonth() !== month - 1 ||
+      date.getDate() !== day
+    ) {
+      throw new Error('ה-AI החזיר תאריך שאינו קיים. בדוק את התאריך ונסה שוב.');
+    }
+    return value;
+  }
+
+  function validateAiLog(result, fallbackDate) {
     if (
       !result ||
       !Array.isArray(result.items) ||
       !Array.isArray(result.activities) ||
       result.items.length > 30 ||
       result.activities.length > 10 ||
-      (result.items.length === 0 && result.activities.length === 0)
+      (result.items.length === 0 && result.activities.length === 0 &&
+        (typeof result.note !== 'string' || !result.note.trim()))
     ) {
-      throw new Error('לא זוהו מאכלים או פעילויות תקינים. נסה לתאר את מה שאכלת או עשית בפירוט נוסף.');
+      throw new Error('לא הצלחתי להבין מה לרשום. תאר אוכל או פעילות, ונסה לציין כמויות, משך או תאריך.');
     }
 
     const foods = result.items.map((item) => {
@@ -903,6 +924,7 @@ function buildAiFoodSchema() {
 
     return {
       name: item.name.trim(),
+      date: validateAiLogDate(item.date, fallbackDate),
       portion: item.portion.trim(),
       cal: Math.round(numbers[0]),
       p: Math.round(numbers[1] * 10) / 10,
@@ -928,6 +950,7 @@ function buildAiFoodSchema() {
     }
     return {
       name: activity.name.trim(),
+      date: validateAiLogDate(activity.date, fallbackDate),
       kind: activity.kind,
       durationMinutes,
       startTime: activity.startTime.trim(),
@@ -1000,6 +1023,7 @@ function prepareAiActivities(activities) {
     prepared.push({
       id: `ex_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       name,
+      date: activity.date,
       cal: calories,
       durationMinutes,
       startTime,
@@ -1053,7 +1077,7 @@ function renderAiResult(items, activities, note, citations, cachedCount, skipped
     const foodList = document.createElement('ul');
     items.forEach((item) => {
       const listItem = document.createElement('li');
-      listItem.textContent = `${item.name} (${item.portion}) — ${item.cal} קק"ל, ${getAiMealLabel(item.meal)}`;
+      listItem.textContent = `${item.name} (${item.portion}) — ${item.cal} קק"ל, ${getAiMealLabel(item.meal)}, ${formatAiDate(item.date)}`;
       foodList.appendChild(listItem);
     });
     result.appendChild(foodList);
@@ -1069,7 +1093,7 @@ function renderAiResult(items, activities, note, citations, cachedCount, skipped
       const timeLabel = activity.startTime && activity.endTime
         ? ` (${activity.startTime}–${activity.endTime})`
         : '';
-      listItem.textContent = `${activity.name}${timeLabel} — ${activity.durationMinutes} דקות, ${activity.cal} קק"ל שנשרפו`;
+      listItem.textContent = `${activity.name}${timeLabel} — ${activity.durationMinutes} דקות, ${activity.cal} קק"ל שנשרפו, ${formatAiDate(activity.date)}`;
       activityList.appendChild(listItem);
     });
     result.appendChild(activityList);
@@ -1114,6 +1138,15 @@ function renderAiResult(items, activities, note, citations, cachedCount, skipped
   result.classList.remove('hidden');
 }
 
+function formatAiDate(dateStr) {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  return new Date(year, month - 1, day).toLocaleDateString('he-IL', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  });
+}
+
 async function analyzeMealWithGemini(description) {
   const localFoods = getAllFoods().slice(0, 250).map((food) => ({
     name: food.name,
@@ -1124,9 +1157,10 @@ async function analyzeMealWithGemini(description) {
     fat: food.f,
     category: food.cat
   }));
-  const now = new Date();
+  const today = getTodayDateString();
   const prompt = [
-    'אתה מנתח יומן אכילה ופעילות בעברית. חלץ את כל המאכלים שנאכלו ואת כל הפעילויות הגופניות שתוארו. אל תמציא מזון, כמויות או משכי פעילות שלא נאמרו.',
+    'אתה עוזר יומן אישי שמבין הודעות טבעיות בעברית. קרא את כל ההודעה בהקשר; חלץ כל מאכל שנאכל וכל פעילות גופנית שבוצעה, גם אם הם מתוארים בשיחה מעורבת או בסלנג. אל תמציא אירועים או כמויות.',
+    `לכל מאכל ופעילות קבע שדה date בפורמט YYYY-MM-DD. היום המקומי הוא ${today}; התאריך שנבחר כרגע ביומן הוא ${currentDate}. אם ההודעה אומרת "אתמול", "שלשום", "מחר", יום בשבוע או תאריך מפורש, חשב את התאריך המדויק לכל אירוע ביחס להיום המקומי, גם כשמופיעים כמה תאריכים בהודעה. אם לא צוין תאריך כלל, השתמש בתאריך שנבחר ביומן (${currentDate}).`,
     'החזר ערכים תזונתיים לכל הכמות שנאכלה, לא ל-100 גרם אלא אם המשתמש אמר 100 גרם. אם הכמות אינה ברורה, הערך מנה סבירה וציין זאת ב-note.',
     'השתמש במאגר המקומי המצורף לפני כל חיפוש. פריט תואם למאגר יקבל source=local_database, והערכים במאגר גוברים על הערכה.',
     'השתמש ב-Google Search רק לפריט שלא נמצא במאגר, במיוחד מוצר ממותג, מסעדה או פריט ספציפי; אל תחפש פריטים רגילים שאפשר להעריך באופן סביר. כשנעשה חיפוש, קבע source=web_search; אחרת לפריט חדש קבע source=estimate.',
@@ -1134,7 +1168,8 @@ async function analyzeMealWithGemini(description) {
     'בחר לכל פריט category אחת מהקטגוריות המותרות בסכמה. פלט בעברית. אל תכלול פעילות גופנית או שתייה ללא קלוריות כפריטי מזון.',
     'חלץ פעילויות גופניות למערך activities. משחק כדורסל 3 על 3 תמיד יקבל kind=basketball_3v3, calories=0, ושעות התחלה וסיום רק אם נאמרו במפורש. המר שעות כמו "משעה 15 עד 17" לפורמט 15:00 ו-17:00; אל תחשב קלוריות לכדורסל, האפליקציה תחשב אותן מהשעות. אם לא נאמרו שעות, השאר את startTime ו-endTime ריקים וציין ב-note שנדרשות שעות.',
     'כל פעילות אחרת תקבל kind=other. חשב את משכה רק אם המשתמש ציין משך או מרחק שניתן להמיר למשך באופן סביר; אם יש משך, הערך קלוריות שנשרפו. אם אין משך ואין דרך סבירה להסיק אותו, השאר durationMinutes=0 ו-calories=0 וציין ב-note שחסר משך. אם אין מאכלים, החזר items כמערך ריק; אם אין פעילויות, החזר activities כמערך ריק.',
-    `השעה המקומית כעת: ${now.toLocaleString('he-IL')}.`,
+    'אם המשתמש שואל שאלה כללית או שההודעה אינה מתארת אכילה/פעילות לרישום, אל תוסיף רשומות; החזר מערכים ריקים וענה בקצרה ב-note. אם חסר פרט הכרחי לרישום, בקש אותו ב-note במקום לנחש.',
+    `השעה המקומית כעת: ${new Date().toLocaleString('he-IL')}.`,
     `מאגר מזונות מקומי (מקור לשימוש חוזר, אל תחפש פריטים אלה): ${JSON.stringify(localFoods)}`,
     `תיאור המשתמש: ${description}`
   ].join('\n\n');
@@ -1182,7 +1217,7 @@ async function analyzeMealWithGemini(description) {
   }
 
   return {
-    ...validateAiFoodItems(parsed),
+    ...validateAiLog(parsed, currentDate),
     note: typeof parsed.note === 'string' ? parsed.note.trim() : '',
     citations: collectGroundingLinks(responseBody)
   };
@@ -1307,9 +1342,8 @@ document.addEventListener('DOMContentLoaded', () => {
     setAiAnalysisBusy(true, 'מנתח מאכלים ופעילויות, ומשתמש במאגר המקומי; חיפוש Google יופעל רק כשיידרש.');
     try {
       const analysis = await analyzeMealWithGemini(description);
-      const day = ensureDay(currentDate);
       analysis.foods.forEach((item) => {
-        day.meals[item.meal].push({
+        ensureDay(item.date).meals[item.meal].push({
           id: `entry_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
           name: item.name,
           portion: item.portion,
@@ -1320,13 +1354,22 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       });
       const activityResult = prepareAiActivities(analysis.activities);
-      day.exercises.push(...activityResult.prepared);
+      activityResult.prepared.forEach((activity) => {
+        ensureDay(activity.date).exercises.push(activity);
+      });
       const cachedCount = cacheAiFoods(analysis.foods);
       if ((analysis.foods.length > 0 || activityResult.prepared.length > 0 || cachedCount > 0) && !saveState()) {
         throw new Error('לא ניתן לשמור את הרישום במכשיר. בדוק את שטח האחסון של הדפדפן ונסה שוב.');
       }
       if (analysis.foods.length > 0 || activityResult.prepared.length > 0) {
         document.getElementById('ai-food-description').value = '';
+      }
+      const loggedDates = [...new Set([
+        ...analysis.foods.map((item) => item.date),
+        ...activityResult.prepared.map((activity) => activity.date)
+      ])];
+      if (loggedDates.length === 1) {
+        currentDate = loggedDates[0];
       }
       renderAll();
       renderAiResult(
