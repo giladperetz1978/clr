@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">קלוריטראק</string>
+    <string name="no_app_for_link">לא נמצאה אפליקציה לפתיחת הקישור</string>
+    <string name="no_file_picker">לא נמצא בורר קבצים במכשיר</string>
+</resources>
