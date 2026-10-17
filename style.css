@@ -39,9 +39,13 @@ body {
 }
 
 .app-shell {
+  --shell-spacing: 16px;
   max-width: 960px;
   margin: 0 auto;
-  padding: 16px;
+  padding: calc(var(--shell-spacing) + env(safe-area-inset-top, 0px))
+    calc(var(--shell-spacing) + env(safe-area-inset-right, 0px))
+    var(--shell-spacing)
+    calc(var(--shell-spacing) + env(safe-area-inset-left, 0px));
 }
 
 /* Header & Date Navigator */
@@ -1643,7 +1647,7 @@ button:disabled {
   }
 
   @media (max-width: 720px) {
-    .app-shell { padding: 10px; }
+    .app-shell { --shell-spacing: 10px; }
     .top-header { padding: 10px 12px; gap: 8px; margin-bottom: 10px; }
     .brand-logo { width: 34px; height: 34px; font-size: 1.2rem; }
     .brand-titles h1 { font-size: 1.05rem; }

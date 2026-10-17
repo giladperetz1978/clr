@@ -6,12 +6,16 @@ import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
+import android.graphics.Color;
+import android.graphics.Insets;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Build;
 import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
 import android.view.ViewGroup;
+import android.view.WindowInsets;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
@@ -19,6 +23,7 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Toast;
+import android.widget.FrameLayout;
 import org.json.JSONObject;
 import java.util.ArrayList;
 
@@ -113,7 +118,24 @@ public final class MainActivity extends Activity {
             }
         });
 
-        setContentView(webView);
+        FrameLayout content = new FrameLayout(this);
+        content.setBackgroundColor(Color.rgb(15, 23, 42));
+        content.addView(webView);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            getWindow().setDecorFitsSystemWindows(false);
+            content.setOnApplyWindowInsetsListener((view, insets) -> {
+                Insets safeArea = insets.getInsets(
+                        WindowInsets.Type.systemBars()
+                                | WindowInsets.Type.displayCutout()
+                                | WindowInsets.Type.ime()
+                );
+                view.setPadding(safeArea.left, safeArea.top, safeArea.right, safeArea.bottom);
+                // The native container owns the safe area; do not apply it again inside WebView.
+                return WindowInsets.CONSUMED;
+            });
+        }
+        setContentView(content);
+        content.requestApplyInsets();
         if (savedInstanceState == null || webView.restoreState(savedInstanceState) == null) {
             webView.loadUrl(APP_URL);
         }
