@@ -23,6 +23,16 @@ test('accounts, per-user encrypted backups, and the Gemini proxy are isolated', 
     });
   });
   let upstreamRequest;
+  let recommendationOutput = {
+    reply: 'מצאתי אפשרות מתאימה.',
+    questionAsked: false,
+    suggestions: [{
+      name: 'טוסט גבינה',
+      portion: 'פרוסה אחת עם 30 גרם גבינה',
+      calories: 450,
+      reason: 'נשארת מתחת לתקציב.'
+    }]
+  };
   const service = createHttpServer({
     allowedOrigin: `http://127.0.0.1:${port}`,
     secureCookies: false,
@@ -31,7 +41,10 @@ test('accounts, per-user encrypted backups, and the Gemini proxy are isolated', 
     logger: { error() {} },
     fetchImpl: async (url, options) => {
       upstreamRequest = { url, options };
-      return new Response(JSON.stringify({ output_text: '{"items":[]}' }), {
+      const requestBody = JSON.parse(options.body);
+      const isRecommendation = Boolean(requestBody.response_format.schema.properties.suggestions);
+      const outputText = isRecommendation ? JSON.stringify(recommendationOutput) : '{"items":[]}';
+      return new Response(JSON.stringify({ output_text: outputText }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' }
       });
@@ -105,6 +118,62 @@ test('accounts, per-user encrypted backups, and the Gemini proxy are isolated', 
   assert.equal(upstreamRequest.options.headers['x-goog-api-key'], 'server-only-test-key');
   assert.equal(JSON.stringify(aiPayload).includes('server-only-test-key'), false);
   assert.equal(upstreamRequest.options.body.includes('server-only-test-key'), false);
+
+  const recommendation = await api('/api/gemini/recommend', alice, {
+    method: 'POST',
+    body: JSON.stringify({
+      date: '2026-10-17',
+      goal: 2000,
+      eaten: 1500,
+      burned: 0,
+      questionsAsked: 0,
+      messages: [{ role: 'user', content: 'תציע משהו חלבי עד היתרה' }]
+    })
+  });
+  assert.equal(recommendation.status, 200);
+  const recommendationBody = await recommendation.json();
+  assert.equal(recommendationBody.remainingCalories, 500);
+  assert.equal(recommendationBody.answer.suggestions[0].calories, 450);
+  const recommendationRequest = JSON.parse(upstreamRequest.options.body);
+  assert.match(recommendationRequest.input, /"availableForSuggestions":500/);
+  assert.ok(recommendationRequest.response_format.schema.properties.suggestions);
+  assert.equal(upstreamRequest.options.headers['x-goog-api-key'], 'server-only-test-key');
+
+  recommendationOutput = {
+    reply: 'נסה את ההצעה הזאת.',
+    questionAsked: false,
+    suggestions: [{
+      name: 'מנה גדולה',
+      portion: 'מנה',
+      calories: 501,
+      reason: 'משביעה.'
+    }]
+  };
+  const overBudget = await api('/api/gemini/recommend', alice, {
+    method: 'POST',
+    body: JSON.stringify({
+      date: '2026-10-17',
+      goal: 2000,
+      eaten: 1500,
+      burned: 0,
+      questionsAsked: 0,
+      messages: [{ role: 'user', content: 'תציע משהו' }]
+    })
+  });
+  assert.equal(overBudget.status, 502);
+
+  const tooManyQuestions = await api('/api/gemini/recommend', alice, {
+    method: 'POST',
+    body: JSON.stringify({
+      date: '2026-10-17',
+      goal: 2000,
+      eaten: 1500,
+      burned: 0,
+      questionsAsked: 4,
+      messages: [{ role: 'user', content: 'תציע משהו' }]
+    })
+  });
+  assert.equal(tooManyQuestions.status, 400);
 
   const deniedOrigin = await fetch(`${origin}/api/auth/logout`, {
     method: 'POST',

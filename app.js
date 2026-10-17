@@ -143,6 +143,9 @@ let currentDate = getTodayDateString();
 let activeDbCategory = 'all';
 let selectedModalFood = null;
 let isAiAnalysisBusy = false;
+let recommendationMessages = [];
+let recommendationQuestionsAsked = 0;
+let isRecommendationBusy = false;
 
 function saveState() {
   try {
@@ -274,6 +277,18 @@ function renderSummaryHero() {
     remEl.textContent = `+${Math.abs(remaining).toLocaleString()}`;
     remEl.classList.add('over-limit');
     ringFill.classList.add('over-limit');
+  }
+
+  function renderRecommendationBudget() {
+    const totals = computeDayTotals(currentDate);
+    const goal = Number(state.goals.calories) || 0;
+    const remaining = goal + totals.burned - totals.eaten;
+    const available = Math.max(0, remaining);
+    document.getElementById('recommendation-budget-value').textContent = `${available.toLocaleString()} קק״ל`;
+    document.getElementById('recommendation-budget-detail').textContent =
+      remaining < 0
+        ? `היעד נטו כבר נחרג ב-${Math.abs(remaining).toLocaleString()} קק״ל · ${formatHebrewDate(currentDate).main}`
+        : `יעד ${goal.toLocaleString()} · נאכלו ${totals.eaten.toLocaleString()} · פעילות ${totals.burned.toLocaleString()} · ${formatHebrewDate(currentDate).main}`;
   }
 
   const circumference = 465;
@@ -1152,6 +1167,49 @@ function setAiAnalysisBusy(isBusy, message = '') {
   progress.classList.toggle('hidden', !message);
 }
 
+function appendRecommendationMessage({ role, text, suggestions = [] }) {
+  const log = document.getElementById('recommendation-chat-log');
+  const bubble = document.createElement('div');
+  bubble.className = `recommendation-message ${role}`;
+  const content = document.createElement('p');
+  content.textContent = text;
+  bubble.appendChild(content);
+
+  if (suggestions.length) {
+    const list = document.createElement('div');
+    list.className = 'recommendation-suggestions';
+    suggestions.forEach((suggestion) => {
+      const card = document.createElement('div');
+      card.className = 'recommendation-suggestion';
+      const title = document.createElement('strong');
+      title.textContent = `${suggestion.name} · ${suggestion.portion} · ${suggestion.calories} קק״ל`;
+      card.appendChild(title);
+      if (suggestion.reason) {
+        const reason = document.createElement('p');
+        reason.textContent = suggestion.reason;
+        card.appendChild(reason);
+      }
+      list.appendChild(card);
+    });
+    bubble.appendChild(list);
+  }
+
+  log.appendChild(bubble);
+  log.scrollTop = log.scrollHeight;
+}
+
+function setRecommendationBusy(isBusy, message) {
+  isRecommendationBusy = isBusy;
+  document.getElementById('recommendation-send').disabled = isBusy;
+  document.getElementById('recommendation-new-chat').disabled = isBusy;
+  document.getElementById('recommendation-chat-input').disabled = isBusy;
+  const status = document.getElementById('recommendation-chat-status');
+  if (message !== undefined) {
+    status.textContent = message;
+    status.classList.toggle('hidden', !message);
+  }
+}
+
 function renderAll() {
   renderDateHeader();
   renderSummaryHero();
@@ -1162,6 +1220,7 @@ function renderAll() {
   renderStatsView();
   populateGoalsForm();
   renderAiKeySettings();
+  renderRecommendationBudget();
 }
 
 /* ================= EVENT LISTENERS ================= */
@@ -1214,6 +1273,101 @@ document.addEventListener('DOMContentLoaded', async () => {
           p: item.p,
           c: item.c,
           f: item.f
+        });
+
+        document.getElementById('recommendation-chat-form').addEventListener('submit', async (event) => {
+          event.preventDefault();
+          if (isRecommendationBusy) return;
+          const form = event.currentTarget;
+          const input = document.getElementById('recommendation-chat-input');
+          const message = input.value.trim();
+          if (!message) return;
+
+          const totals = computeDayTotals(currentDate);
+          const goal = Number(state.goals.calories) || 0;
+          const remainingCalories = goal + totals.burned - totals.eaten;
+          const pendingMessages = [
+            ...recommendationMessages,
+            { role: 'user', content: message }
+          ].slice(-12);
+
+          setRecommendationBusy(true, 'חושב על המלצות שמתאימות ליתרה שלך...');
+          try {
+            const result = await window.serverApi('/api/gemini/recommend', {
+              method: 'POST',
+              body: JSON.stringify({
+                date: currentDate,
+                goal,
+                eaten: totals.eaten,
+                burned: totals.burned,
+                questionsAsked: recommendationQuestionsAsked,
+                messages: pendingMessages
+              })
+            });
+            if (!result.answer || typeof result.answer.reply !== 'string'
+                || typeof result.answer.questionAsked !== 'boolean'
+                || !Array.isArray(result.answer.suggestions)) {
+              throw new Error('תשובת צ׳אט ההמלצות אינה תקינה. נסה שוב.');
+            }
+            const available = Math.max(0, remainingCalories);
+            const suggestions = result.answer.suggestions.filter((suggestion) =>
+              Number.isFinite(suggestion.calories) && suggestion.calories >= 0 && suggestion.calories <= available
+            );
+
+            recommendationMessages = [
+              ...pendingMessages,
+              { role: 'assistant', content: result.answer.reply }
+            ].slice(-12);
+            if (result.answer.questionAsked) recommendationQuestionsAsked += 1;
+            appendRecommendationMessage({ role: 'user', text: message });
+            appendRecommendationMessage({
+              role: 'assistant',
+              text: result.answer.reply,
+              suggestions
+            });
+            input.value = '';
+            if (suggestions.length !== result.answer.suggestions.length) {
+              showToast('הוסרו הצעות שחורגות מיתרת הקלוריות.');
+            }
+            if (recommendationQuestionsAsked >= 3) {
+              document.getElementById('recommendation-chat-status').textContent =
+                'מיצינו את שלוש שאלות ההבהרה. אפשר לבקש המלצה לפי המידע שנאסף, או להתחיל שיחה חדשה.';
+              document.getElementById('recommendation-chat-status').classList.remove('hidden');
+            } else {
+              const status = document.getElementById('recommendation-chat-status');
+              status.textContent = '';
+              status.classList.add('hidden');
+            }
+            form.reset();
+          } catch (error) {
+            console.error('Food recommendation chat failed:', error);
+            document.getElementById('recommendation-chat-status').textContent =
+              error.message || 'לא ניתן לקבל המלצות כרגע. נסה שוב.';
+            document.getElementById('recommendation-chat-status').classList.remove('hidden');
+          } finally {
+            setRecommendationBusy(false);
+          }
+        });
+
+        document.getElementById('recommendation-new-chat').addEventListener('click', () => {
+          recommendationMessages = [];
+          recommendationQuestionsAsked = 0;
+          const log = document.getElementById('recommendation-chat-log');
+          log.replaceChildren();
+          appendRecommendationMessage({
+            role: 'assistant',
+            text: 'שיחה חדשה. מה מתחשק לך? אפשר לבקש המלצות לפי היתרה, לציין העדפות כמו חלבי, צמחי או טבעוני, או לשאול על כמות ממאכל מסוים. אפשר לברר עד שלוש שאלות לכל מאכל.'
+          });
+          setRecommendationBusy(false, '');
+          document.getElementById('recommendation-chat-input').value = '';
+        });
+
+        document.querySelectorAll('[data-recommendation-prompt]').forEach((button) => {
+          button.addEventListener('click', () => {
+            const input = document.getElementById('recommendation-chat-input');
+            input.value = button.dataset.recommendationPrompt;
+            input.focus();
+          });
         });
       });
       activityResult.prepared.forEach((activity) => {

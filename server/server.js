@@ -93,6 +93,128 @@ function makeSchema() {
   };
 }
 
+function makeRecommendationSchema() {
+  return {
+    type: 'object',
+    properties: {
+      reply: { type: 'string' },
+      questionAsked: { type: 'boolean' },
+      suggestions: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            name: { type: 'string' },
+            portion: { type: 'string' },
+            calories: { type: 'integer' },
+            reason: { type: 'string' }
+          },
+          required: ['name', 'portion', 'calories', 'reason']
+        }
+      }
+    },
+    required: ['reply', 'questionAsked', 'suggestions']
+  };
+}
+
+function buildRecommendationPrompt(body) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    throw new HttpError(400, 'פרטי שיחת ההמלצות אינם תקינים.');
+  }
+  const date = body?.date;
+  const parsedDate = typeof date === 'string' ? new Date(`${date}T00:00:00.000Z`) : null;
+  if (typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date)
+      || !Number.isFinite(parsedDate?.getTime()) || parsedDate.toISOString().slice(0, 10) !== date) {
+    throw new HttpError(400, 'תאריך היום ביומן אינו תקין.');
+  }
+  const metrics = ['goal', 'eaten', 'burned'];
+  if (metrics.some((key) => !Number.isSafeInteger(body[key]) || body[key] < 0 || body[key] > 200000)
+      || body.goal > 10000) {
+    throw new HttpError(400, 'נתוני הקלוריות אינם תקינים.');
+  }
+  if (!Number.isInteger(body.questionsAsked) || body.questionsAsked < 0 || body.questionsAsked > 3) {
+    throw new HttpError(400, 'מספר שאלות ההבהרה אינו תקין.');
+  }
+  if (!Array.isArray(body.messages) || body.messages.length < 1 || body.messages.length > 12
+      || body.messages[body.messages.length - 1]?.role !== 'user') {
+    throw new HttpError(400, 'היסטוריית השיחה אינה תקינה.');
+  }
+
+  let totalCharacters = 0;
+  const messages = body.messages.map((message) => {
+    if (!message || !['user', 'assistant'].includes(message.role)
+        || typeof message.content !== 'string' || !message.content.trim()
+        || message.content.length > 1800) {
+      throw new HttpError(400, 'הודעה בשיחה אינה תקינה.');
+    }
+    totalCharacters += message.content.length;
+    return `${message.role === 'user' ? 'המשתמש' : 'העוזר'}: ${message.content}`;
+  });
+  if (totalCharacters > 12000) throw new HttpError(413, 'היסטוריית השיחה ארוכה מדי.');
+
+  const remainingCalories = body.goal + body.burned - body.eaten;
+  const availableCalories = Math.max(0, remainingCalories);
+  const prompt = [
+    'אתה צ׳אט המלצות מזון בלבד. אל תרשום, אל תוסיף ואל תשנה שום נתון ביומן; הממשק הזה לעולם אינו רושם מאכלים.',
+    'התאם הצעות ליתרת הקלוריות המחושבת בהקשר. כל פריט במערך suggestions חייב לכלול מנה ברורה והערכה סבירה של הקלוריות, ולעולם לא לחרוג מהתקציב הזמין. אם אין מנה מתאימה או שהיתרה אפס/שלילית, החזר suggestions ריק והסבר זאת ב-reply. אין להציג הצעת מזון שעוברת את התקציב.',
+    'כשמבקשים כמות למאכל מסוים, חשב כמות מרבית מעשית שהקלוריות שלה אינן עוברות את התקציב; ציין את הכמות ואת הערכת הקלוריות. אם הנתונים תלויים במתכון/מותג, ציין הנחות או השתמש בחיפוש רק למוצר ספציפי.',
+    'נהל שיחה בעברית ובטון ידידותי. אפשר לשאול עד שלוש שאלות הבהרה בשיחה, שאלה אחת בכל הודעה, כדי לברר סוג מאכל או ארוחה, העדפות (חלבי, צמחי, טבעוני וכדומה) ומה המשתמש רוצה לאכול. אם כבר יש מספיק מידע, תן הצעות במקום לשאול. לאחר שנשאלו שלוש שאלות, אל תשאל עוד ושב עם ההמלצה הטובה ביותר לפי המידע הקיים.',
+    'השב רק במבנה JSON של הסכמה. reply הוא התשובה/השאלה בעברית; questionAsked הוא true רק אם reply מכיל שאלת הבהרה אחת; suggestions מכיל עד חמש הצעות. אל תכלול תוכן שאינו המלצת אוכל, כמות או בירור העדפות. שמור על עצות תזונה כלליות ומאוזנות ואל תציג אותן כייעוץ רפואי.',
+    `הקשר יומי מחושב: ${JSON.stringify({
+      date,
+      goal: body.goal,
+      eaten: body.eaten,
+      burned: body.burned,
+      remaining: remainingCalories,
+      availableForSuggestions: availableCalories
+    })}`,
+    `שאלות הבהרה שכבר נשאלו בשיחה: ${body.questionsAsked} מתוך 3.`,
+    `השיחה עד כה:\n${messages.join('\n')}`
+  ].join('\n\n');
+
+  return { prompt, remainingCalories, availableCalories };
+}
+
+function extractOutputText(result) {
+  if (typeof result.output_text === 'string') return result.output_text;
+  const text = [];
+  (result.steps || []).forEach((step) => {
+    if (step.type !== 'model_output') return;
+    (step.content || []).forEach((content) => {
+      if (typeof content.text === 'string') text.push(content.text);
+    });
+  });
+  return text.join('\n').trim();
+}
+
+function validateRecommendationAnswer(result, context, questionsAsked) {
+  let answer;
+  try {
+    answer = JSON.parse(extractOutputText(result));
+  } catch {
+    throw new HttpError(502, 'Gemini החזיר תשובת המלצה לא תקינה.');
+  }
+  if (!answer || typeof answer.reply !== 'string' || !answer.reply.trim()
+      || answer.reply.length > 1800 || typeof answer.questionAsked !== 'boolean'
+      || !Array.isArray(answer.suggestions) || answer.suggestions.length > 5) {
+    throw new HttpError(502, 'Gemini החזיר תשובת המלצה לא תקינה.');
+  }
+  if (answer.questionAsked && questionsAsked >= 3) {
+    throw new HttpError(502, 'התקבלה שאלת הבהרה מעבר למגבלת השיחה. נסה שוב.');
+  }
+  answer.suggestions.forEach((suggestion) => {
+    if (!suggestion || typeof suggestion.name !== 'string' || !suggestion.name.trim()
+        || suggestion.name.length > 100 || typeof suggestion.portion !== 'string'
+        || !suggestion.portion.trim() || suggestion.portion.length > 140
+        || !Number.isSafeInteger(suggestion.calories) || suggestion.calories < 0
+        || suggestion.calories > context.availableCalories
+        || typeof suggestion.reason !== 'string' || suggestion.reason.length > 500) {
+      throw new HttpError(502, 'הצעת Gemini חרגה מתקציב הקלוריות או לא תקינה. נסה שוב.');
+    }
+  });
+  return answer;
+}
+
 function passwordHash(password, salt) {
   return scryptAsync(password, salt, 64, { N: 32768, r: 8, p: 1, maxmem: 64 * 1024 * 1024 });
 }
@@ -341,11 +463,13 @@ export function createServer({
     send(response, 200, { user: { id: user.id, username: user.username, role: user.role } });
   }
 
-  async function callGemini(request, response, user) {
+  async function callGemini(request, response, user, mode = 'analyze') {
     const bucketKey = `user:${user.id}`;
     checkRateLimit(aiCalls, bucketKey, 30, 60 * 1000);
     const body = await readJson(request, MAX_GEMINI_INPUT_BYTES);
-    if (typeof body.input !== 'string' || !body.input.trim() || Buffer.byteLength(body.input, 'utf8') > MAX_GEMINI_INPUT_BYTES) {
+    const recommendationContext = mode === 'recommend' ? buildRecommendationPrompt(body) : null;
+    const input = recommendationContext ? recommendationContext.prompt : body.input;
+    if (typeof input !== 'string' || !input.trim() || Buffer.byteLength(input, 'utf8') > MAX_GEMINI_INPUT_BYTES) {
       throw new HttpError(400, 'תיאור ההודעה חסר או ארוך מדי.');
     }
     let upstream;
@@ -355,12 +479,12 @@ export function createServer({
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': geminiKey },
         body: JSON.stringify({
           model: 'gemini-3.8-flash',
-          input: body.input,
+          input,
           tools: [{ type: 'google_search' }],
           response_format: {
             type: 'text',
             mime_type: 'application/json',
-            schema: makeSchema()
+            schema: mode === 'recommend' ? makeRecommendationSchema() : makeSchema()
           }
         }),
         signal: AbortSignal.timeout(60_000)
@@ -380,6 +504,14 @@ export function createServer({
         throw new HttpError(status, upstream.status === 429
           ? 'מכסת בקשות Gemini זמנית מלאה. נסה שוב מאוחר יותר.'
           : 'בקשת Gemini נכשלה. בדוק את מפתח השרת או נסה שוב מאוחר יותר.');
+      }
+      if (recommendationContext) {
+        const answer = validateRecommendationAnswer(result, recommendationContext, body.questionsAsked);
+        send(response, 200, {
+          answer,
+          remainingCalories: recommendationContext.remainingCalories
+        });
+        return;
       }
       send(response, 200, result);
     } catch (error) {
@@ -510,6 +642,10 @@ export function createServer({
       }
       if (request.method === 'POST' && url.pathname === '/api/gemini/analyze') {
         await callGemini(request, response, user);
+        return;
+      }
+      if (request.method === 'POST' && url.pathname === '/api/gemini/recommend') {
+        await callGemini(request, response, user, 'recommend');
         return;
       }
       throw new HttpError(404, 'הנתיב לא נמצא.');
