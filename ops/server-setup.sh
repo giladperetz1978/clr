@@ -133,4 +133,10 @@ NGINX_TLS
 nginx -t
 systemctl reload nginx
 systemctl enable caloritrack.service
-echo 'TLS and the CaloriTrack service unit are installed. The service intentionally awaits the Gemini credential.'
+if [[ -s /etc/credstore.encrypted/caloritrack-gemini-api-key ]]; then
+  systemctl restart caloritrack.service
+  systemctl --no-pager --quiet is-active caloritrack.service
+  echo 'TLS and the CaloriTrack service are active.'
+else
+  echo 'TLS and the CaloriTrack service unit are installed. The service awaits the Gemini credential.'
+fi
