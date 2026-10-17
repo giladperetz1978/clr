@@ -147,6 +147,23 @@
         <div class="chips-scroll" id="quick-chips-container"></div>
       </section>
 
+      <section class="card ai-log-card">
+        <div class="card-header">
+          <div>
+            <h2>✨ רישום ארוחה בעזרת AI</h2>
+            <p class="card-subtitle">תאר מה אכלת או איזו פעילות עשית. ה-AI יזהה ארוחות ואימונים, יחשב ערכים וישייך אותם ליומן.</p>
+          </div>
+          <span class="ai-model-badge">Gemini 3.8 Flash</span>
+        </div>
+        <form id="ai-food-form" class="stacked-form">
+          <label for="ai-food-description">מה אכלת היום?</label>
+          <textarea id="ai-food-description" rows="3" maxlength="1200" placeholder="לדוגמה: בבוקר אכלתי שתי ביצים ולחם. בצהריים אכלתי עוף ואורז. שיחקתי 3 על 3 בכדורסל משעה 15 עד 17, ואחר כך רצתי 30 דקות." required></textarea>
+          <button type="submit" class="primary-btn full-width" id="ai-food-submit-btn">✨ נתח והוסף ליומן</button>
+        </form>
+        <div class="ai-progress hidden" id="ai-progress" role="status" aria-live="polite"></div>
+        <div class="ai-result hidden" id="ai-result" aria-live="polite"></div>
+      </section>
+
       <!-- Meals Container -->
       <section class="meals-grid" id="meals-container">
         <!-- Populated by JS: Breakfast, Lunch, Dinner, Snacks, Exercise -->
@@ -374,6 +391,47 @@
           <div id="calc-result-box" class="calc-result-box hidden"></div>
         </section>
       </div>
+
+      <section class="card ai-settings-card">
+        <div class="card-header">
+          <div>
+            <h2>🔐 הגדרות AI ואבטחת מפתח</h2>
+            <p class="card-subtitle">מפתח Gemini נשמר מוצפן בדפדפן בלבד. סיסמת ההצפנה אינה נשמרת ונדרשת לפתיחת המפתח בכל כניסה.</p>
+          </div>
+        </div>
+        <div class="ai-security-note">
+          ההצפנה נעשית במכשיר באמצעות AES-GCM וסיסמה אישית. מפתח ה-API מפוענח בזיכרון רק לצורך בקשות Gemini; הוא נשלח ישירות ל-Google. בכדורסל 3×3 הקלוריות מחושבות לפי 8 MET, משך הזמן ומשקלך האחרון (או 75 ק"ג אם לא נרשמה שקילה). אין להזין סיסמה שבה משתמשים באתרים אחרים.
+        </div>
+        <form id="ai-key-setup-form" class="stacked-form">
+          <div class="form-row">
+            <label for="gemini-api-key-input">Gemini API key</label>
+            <input type="password" id="gemini-api-key-input" autocomplete="off" placeholder="הדבק כאן את מפתח ה-API שלך" required>
+          </div>
+          <div class="form-row-2">
+            <div class="form-row">
+              <label for="ai-encryption-password">סיסמת הצפנה (לפחות 12 תווים)</label>
+              <input type="password" id="ai-encryption-password" autocomplete="new-password" minlength="12" required>
+            </div>
+            <div class="form-row">
+              <label for="ai-encryption-password-confirm">אימות סיסמה</label>
+              <input type="password" id="ai-encryption-password-confirm" autocomplete="new-password" minlength="12" required>
+            </div>
+          </div>
+          <button type="submit" class="primary-btn full-width" id="save-ai-key-btn">🔒 הצפן ושמור במכשיר</button>
+        </form>
+        <form id="ai-key-unlock-form" class="stacked-form hidden">
+          <div class="form-row">
+            <label for="ai-unlock-password">סיסמת ההצפנה שלך</label>
+            <input type="password" id="ai-unlock-password" autocomplete="current-password" required>
+          </div>
+          <button type="submit" class="primary-btn full-width">🔓 פתח את מפתח ה-AI</button>
+        </form>
+        <div class="ai-key-status" id="ai-key-status" role="status" aria-live="polite"></div>
+        <div class="ai-key-actions hidden" id="ai-key-actions">
+          <button type="button" class="secondary-btn btn-sm" id="lock-ai-key-btn">🔒 נעל מפתח</button>
+          <button type="button" class="danger-btn btn-sm" id="remove-ai-key-btn">🗑️ מחק מפתח מוצפן</button>
+        </div>
+      </section>
     </main>
   </div>
 

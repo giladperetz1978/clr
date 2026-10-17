@@ -1,4 +1,18 @@
 const STORAGE_KEY = 'caloritrack_state_v2';
+const AI_KEY_STORAGE_KEY = 'caloritrack_gemini_key_v1';
+const GEMINI_MODEL = 'gemini-3.8-flash';
+const ENCRYPTION_ITERATIONS = 310000;
+const MEAL_KEYS = ['breakfast', 'lunch', 'dinner', 'snacks'];
+const FOOD_CATEGORIES = [
+  'חלבונים ובשר',
+  'מוצרי חלב וביצים',
+  'לחם, דגנים ופחמימות',
+  'ירקות ופירות',
+  'שומנים, אגוזים וממרחים',
+  'מאכלים ישראליים ומהירים',
+  'חטיפים, מתוקים ומשקאות',
+  'אישי'
+];
 
 const DEFAULT_FOODS = [
   // חלבונים ובשר
@@ -130,12 +144,15 @@ const state = loadAppState();
 let currentDate = getTodayDateString();
 let activeDbCategory = 'all';
 let selectedModalFood = null;
+let unlockedGeminiApiKey = null;
 
 function saveState() {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    return true;
   } catch (err) {
     console.error('Failed saving state:', err);
+    return false;
   }
 }
 
@@ -363,6 +380,7 @@ function renderMealsCards() {
         <li class="log-item">
           <div class="log-item-info">
             <span class="log-item-name">🏃 ${escapeHtml(ex.name)}</span>
+            ${ex.durationMinutes ? `<span class="log-item-meta">${ex.startTime && ex.endTime ? `${escapeHtml(ex.startTime)}–${escapeHtml(ex.endTime)} • ` : ''}${ex.durationMinutes} דקות</span>` : ''}
           </div>
           <div class="log-item-right">
             <span class="log-item-cal burned-text">-${Math.round(ex.cal)} קק"ל</span>
@@ -671,6 +689,514 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
+function getStoredAiKeyRecord() {
+  const raw = localStorage.getItem(AI_KEY_STORAGE_KEY);
+  if (!raw) return null;
+  const record = JSON.parse(raw);
+  if (!record || typeof record.salt !== 'string' || typeof record.iv !== 'string' || typeof record.ciphertext !== 'string') {
+    throw new Error('רשומת מפתח ה-AI השמורה אינה תקינה. מחק אותה והגדר מפתח חדש.');
+  }
+  return record;
+}
+
+function setAiKeyStatus(message, isError = false) {
+  const status = document.getElementById('ai-key-status');
+  status.textContent = message;
+  status.classList.toggle('ai-error', isError);
+}
+
+function renderAiKeySettings() {
+  const setupForm = document.getElementById('ai-key-setup-form');
+  const unlockForm = document.getElementById('ai-key-unlock-form');
+  const keyActions = document.getElementById('ai-key-actions');
+  let storedRecord;
+
+  try {
+    storedRecord = getStoredAiKeyRecord();
+  } catch (error) {
+    setupForm.classList.remove('hidden');
+    unlockForm.classList.add('hidden');
+    keyActions.classList.add('hidden');
+    setAiKeyStatus(error.message, true);
+    return;
+  }
+
+  if (!window.isSecureContext || !window.crypto?.subtle) {
+    setAiKeyStatus('אחסון מפתח מוצפן זמין רק בחיבור מאובטח (HTTPS או localhost).', true);
+  } else if (unlockedGeminiApiKey) {
+    setAiKeyStatus('מפתח ה-AI פתוח בזיכרון וזמין לשימוש. המפתח עצמו אינו מוצג או נשמר כטקסט גלוי.');
+  } else if (storedRecord) {
+    setAiKeyStatus('נמצא מפתח מוצפן במכשיר. הזן את סיסמת ההצפנה כדי להשתמש ב-AI.');
+  } else {
+    setAiKeyStatus('עדיין לא הוגדר מפתח Gemini במכשיר הזה.');
+  }
+
+  setupForm.classList.remove('hidden');
+  unlockForm.classList.toggle('hidden', !storedRecord || Boolean(unlockedGeminiApiKey));
+  keyActions.classList.toggle('hidden', !storedRecord || !unlockedGeminiApiKey);
+}
+
+function bytesToBase64(bytes) {
+  let binary = '';
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+  return btoa(binary);
+}
+
+function base64ToBytes(value) {
+  return Uint8Array.from(atob(value), (char) => char.charCodeAt(0));
+}
+
+async function deriveEncryptionKey(password, salt) {
+  const passwordKey = await window.crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(password),
+    'PBKDF2',
+    false,
+    ['deriveKey']
+  );
+
+  return window.crypto.subtle.deriveKey(
+    {
+      name: 'PBKDF2',
+      salt,
+      iterations: ENCRYPTION_ITERATIONS,
+      hash: 'SHA-256'
+    },
+    passwordKey,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt', 'decrypt']
+  );
+}
+
+async function encryptApiKey(apiKey, password) {
+  const salt = window.crypto.getRandomValues(new Uint8Array(16));
+  const iv = window.crypto.getRandomValues(new Uint8Array(12));
+  const encryptionKey = await deriveEncryptionKey(password, salt);
+  const ciphertext = await window.crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv },
+    encryptionKey,
+    new TextEncoder().encode(apiKey)
+  );
+
+  return {
+    salt: bytesToBase64(salt),
+    iv: bytesToBase64(iv),
+    ciphertext: bytesToBase64(new Uint8Array(ciphertext))
+  };
+}
+
+async function decryptApiKey(record, password) {
+  const salt = base64ToBytes(record.salt);
+  const iv = base64ToBytes(record.iv);
+  const ciphertext = base64ToBytes(record.ciphertext);
+  const encryptionKey = await deriveEncryptionKey(password, salt);
+  const plaintext = await window.crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv },
+    encryptionKey,
+    ciphertext
+  );
+  return new TextDecoder().decode(plaintext);
+}
+
+function collectGroundingLinks(response) {
+  const links = new Map();
+  (response.steps || []).forEach((step) => {
+    (step.content || []).forEach((content) => {
+      (content.annotations || []).forEach((annotation) => {
+        if (annotation.url && /^https:\/\//i.test(annotation.url)) {
+          links.set(annotation.url, annotation.title || annotation.url);
+        }
+      });
+    });
+  });
+  return [...links.entries()].map(([url, title]) => ({ url, title }));
+}
+
+function extractInteractionText(response) {
+  if (typeof response.output_text === 'string') return response.output_text;
+
+  const textParts = [];
+  (response.steps || []).forEach((step) => {
+    if (step.type !== 'model_output') return;
+    (step.content || []).forEach((content) => {
+      if (typeof content.text === 'string') textParts.push(content.text);
+    });
+  });
+  return textParts.join('\n').trim();
+}
+
+function buildAiFoodSchema() {
+  return {
+    type: 'object',
+    properties: {
+      items: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            name: { type: 'string', description: 'שם המאכל בעברית.' },
+            portion: { type: 'string', description: 'כמות שנאכלה ותיאור המנה.' },
+            calories: { type: 'integer', description: 'סך הקלוריות בכמות שנאכלה.' },
+            protein: { type: 'number', description: 'גרם חלבון בכמות שנאכלה.' },
+            carbs: { type: 'number', description: 'גרם פחמימות בכמות שנאכלה.' },
+            fat: { type: 'number', description: 'גרם שומן בכמות שנאכלה.' },
+            meal: { type: 'string', enum: MEAL_KEYS, description: 'ארוחה: breakfast, lunch, dinner או snacks.' },
+            category: { type: 'string', enum: FOOD_CATEGORIES, description: 'קטגוריית המאכל המתאימה במאגר.' },
+            source: {
+              type: 'string',
+              enum: ['local_database', 'web_search', 'estimate'],
+              description: 'השתמש ב-local_database לפריט מהמאגר; web_search למידע שנמצא בחיפוש; estimate להערכה.'
+            }
+          },
+          required: ['name', 'portion', 'calories', 'protein', 'carbs', 'fat', 'meal', 'category', 'source']
+        }
+      },
+      activities: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            name: { type: 'string', description: 'סוג הפעילות בעברית.' },
+            kind: { type: 'string', enum: ['basketball_3v3', 'other'], description: 'basketball_3v3 רק למשחק 3 על 3 בכדורסל; אחרת other.' },
+            durationMinutes: { type: 'integer', description: 'משך הפעילות בדקות. אין להמציא משך שלא תואר.' },
+            startTime: { type: 'string', description: 'שעת התחלה בפורמט HH:MM; בכדורסל 3 על 3 נדרשת שעה שנאמרה במפורש, אחרת מחרוזת ריקה.' },
+            endTime: { type: 'string', description: 'שעת סיום בפורמט HH:MM; בכדורסל 3 על 3 נדרשת שעה שנאמרה במפורש, אחרת מחרוזת ריקה.' },
+            calories: { type: 'integer', description: 'קלוריות שנשרפו. בכדורסל 3 על 3 יש להחזיר 0; האפליקציה מחשבת לפי שעות הפעילות.' }
+          },
+          required: ['name', 'kind', 'durationMinutes', 'startTime', 'endTime', 'calories']
+        }
+      },
+      note: { type: 'string', description: 'הערה קצרה בעברית על הערכה או על כמויות חסרות.' }
+    },
+    required: ['items', 'activities', 'note']
+  };
+  }
+
+  function validateAiFoodItems(result) {
+    if (
+      !result ||
+      !Array.isArray(result.items) ||
+      !Array.isArray(result.activities) ||
+      result.items.length > 30 ||
+      result.activities.length > 10 ||
+      (result.items.length === 0 && result.activities.length === 0)
+    ) {
+      throw new Error('לא זוהו מאכלים או פעילויות תקינים. נסה לתאר את מה שאכלת או עשית בפירוט נוסף.');
+    }
+
+    const foods = result.items.map((item) => {
+      const numbers = [item.calories, item.protein, item.carbs, item.fat].map(Number);
+    if (
+      typeof item.name !== 'string' || !item.name.trim() ||
+      typeof item.portion !== 'string' || !item.portion.trim() ||
+      !MEAL_KEYS.includes(item.meal) ||
+      !FOOD_CATEGORIES.includes(item.category) ||
+      !['local_database', 'web_search', 'estimate'].includes(item.source) ||
+      numbers.some((value) => !Number.isFinite(value) || value < 0) ||
+      numbers[0] > 10000 || numbers.slice(1).some((value) => value > 1000)
+    ) {
+      throw new Error('התקבלה תשובת מזון לא תקינה. נסה שוב או הוסף את המאכל ידנית.');
+    }
+
+    return {
+      name: item.name.trim(),
+      portion: item.portion.trim(),
+      cal: Math.round(numbers[0]),
+      p: Math.round(numbers[1] * 10) / 10,
+      c: Math.round(numbers[2] * 10) / 10,
+      f: Math.round(numbers[3] * 10) / 10,
+      meal: item.meal,
+      category: item.category,
+      source: item.source
+    };
+  });
+
+  const activities = result.activities.map((activity) => {
+    const durationMinutes = Number(activity.durationMinutes);
+    const calories = Number(activity.calories);
+    if (
+      typeof activity.name !== 'string' || !activity.name.trim() ||
+      !['basketball_3v3', 'other'].includes(activity.kind) ||
+      !Number.isInteger(durationMinutes) || durationMinutes < 0 || durationMinutes > 1440 ||
+      !Number.isFinite(calories) || calories < 0 || calories > 10000 ||
+      typeof activity.startTime !== 'string' || typeof activity.endTime !== 'string'
+    ) {
+      throw new Error('התקבלה תשובת פעילות לא תקינה. נסה שוב או תאר את הפעילות ידנית.');
+    }
+    return {
+      name: activity.name.trim(),
+      kind: activity.kind,
+      durationMinutes,
+      startTime: activity.startTime.trim(),
+      endTime: activity.endTime.trim(),
+      calories: Math.round(calories)
+    };
+  });
+
+  return { foods, activities };
+}
+
+function getAiMealLabel(mealKey) {
+  return MEAL_DEFINITIONS.find((meal) => meal.key === mealKey)?.title || 'ארוחה';
+}
+
+function getActivityWeightKg() {
+  const latestWeight = state.weights
+    .slice()
+    .sort((a, b) => b.date.localeCompare(a.date))[0];
+  if (latestWeight && Number.isFinite(Number(latestWeight.weight)) && Number(latestWeight.weight) > 0) {
+    return Number(latestWeight.weight);
+  }
+
+  const calculatorWeight = Number(document.getElementById('calc-weight').value);
+  return Number.isFinite(calculatorWeight) && calculatorWeight >= 30 && calculatorWeight <= 250
+    ? calculatorWeight
+    : 75;
+}
+
+function parseClockTime(value) {
+  const match = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(value);
+  if (!match) return null;
+  return (Number(match[1]) * 60) + Number(match[2]);
+}
+
+function prepareAiActivities(activities) {
+  const prepared = [];
+  const skipped = [];
+  const weightKg = getActivityWeightKg();
+
+  activities.forEach((activity) => {
+    let durationMinutes = activity.durationMinutes;
+    let calories = activity.calories;
+    let startTime = '';
+    let endTime = '';
+    let name = activity.name;
+
+    if (activity.kind === 'basketball_3v3') {
+      const start = parseClockTime(activity.startTime);
+      const end = parseClockTime(activity.endTime);
+      if (start === null || end === null) {
+        skipped.push('כדורסל 3 על 3 לא נוסף: כדי לחשב קלוריות, ציין שעת התחלה וסיום (למשל 15:00–17:00).');
+        return;
+      }
+
+      durationMinutes = end > start ? end - start : (24 * 60) - start + end;
+      if (durationMinutes < 1 || durationMinutes > 360) {
+        skipped.push('כדורסל 3 על 3 לא נוסף: משך המשחק שחושב אינו סביר, בדוק את שעות ההתחלה והסיום.');
+        return;
+      }
+      startTime = activity.startTime;
+      endTime = activity.endTime;
+      name = 'כדורסל 3 על 3';
+      calories = Math.round(8 * weightKg * (durationMinutes / 60));
+    } else if (durationMinutes < 1 || calories < 1) {
+      skipped.push(`${activity.name} לא נוסף: תאר את משך הפעילות כדי שה-AI יוכל להעריך קלוריות.`);
+      return;
+    }
+
+    prepared.push({
+      id: `ex_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      name,
+      cal: calories,
+      durationMinutes,
+      startTime,
+      endTime,
+      kind: activity.kind
+    });
+  });
+
+  return { prepared, skipped };
+}
+
+function cacheAiFoods(items) {
+  const cachedNames = new Set(getAllFoods().map((food) => food.name.trim().toLocaleLowerCase('he')));
+  const newFoods = [];
+
+  items.forEach((item) => {
+    if (item.source === 'local_database') return;
+    const normalizedName = item.name.trim().toLocaleLowerCase('he');
+    if (cachedNames.has(normalizedName)) return;
+    cachedNames.add(normalizedName);
+    newFoods.push({
+      id: `ai_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      name: item.name,
+      unit: item.portion,
+      cal: item.cal,
+      p: item.p,
+      c: item.c,
+      f: item.f,
+      cat: item.category,
+      emoji: '✨',
+      quick: false,
+      isCustom: true,
+      aiSource: item.source
+    });
+  });
+
+  if (newFoods.length) {
+    state.customFoods.unshift(...newFoods);
+  }
+  return newFoods.length;
+}
+
+function renderAiResult(items, activities, note, citations, cachedCount, skipped) {
+  const result = document.getElementById('ai-result');
+  result.replaceChildren();
+
+  if (items.length > 0) {
+    const foodTitle = document.createElement('strong');
+    foodTitle.textContent = 'מאכלים שנוספו ליומן:';
+    result.appendChild(foodTitle);
+    const foodList = document.createElement('ul');
+    items.forEach((item) => {
+      const listItem = document.createElement('li');
+      listItem.textContent = `${item.name} (${item.portion}) — ${item.cal} קק"ל, ${getAiMealLabel(item.meal)}`;
+      foodList.appendChild(listItem);
+    });
+    result.appendChild(foodList);
+  }
+
+  if (activities.length > 0) {
+    const activityTitle = document.createElement('strong');
+    activityTitle.textContent = 'פעילויות שנוספו ליומן:';
+    result.appendChild(activityTitle);
+    const activityList = document.createElement('ul');
+    activities.forEach((activity) => {
+      const listItem = document.createElement('li');
+      const timeLabel = activity.startTime && activity.endTime
+        ? ` (${activity.startTime}–${activity.endTime})`
+        : '';
+      listItem.textContent = `${activity.name}${timeLabel} — ${activity.durationMinutes} דקות, ${activity.cal} קק"ל שנשרפו`;
+      activityList.appendChild(listItem);
+    });
+    result.appendChild(activityList);
+  }
+
+  if (note) {
+    const noteElement = document.createElement('p');
+    noteElement.textContent = note;
+    result.appendChild(noteElement);
+  }
+
+  skipped.forEach((message) => {
+    const skippedMessage = document.createElement('p');
+    skippedMessage.textContent = message;
+    result.appendChild(skippedMessage);
+  });
+
+  if (cachedCount > 0) {
+    const cacheMessage = document.createElement('p');
+    cacheMessage.textContent = `${cachedCount} מאכלים חדשים נשמרו במאגר המקומי לשימוש עתידי.`;
+    result.appendChild(cacheMessage);
+  }
+
+  if (citations.length > 0) {
+    const sourceTitle = document.createElement('p');
+    sourceTitle.textContent = 'מקורות לחיפוש ברשת:';
+    result.appendChild(sourceTitle);
+    const sourceList = document.createElement('ul');
+    citations.slice(0, 5).forEach((citation) => {
+      const sourceItem = document.createElement('li');
+      const link = document.createElement('a');
+      link.href = citation.url;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.textContent = citation.title;
+      sourceItem.appendChild(link);
+      sourceList.appendChild(sourceItem);
+    });
+    result.appendChild(sourceList);
+  }
+
+  result.classList.remove('hidden');
+}
+
+async function analyzeMealWithGemini(description) {
+  const localFoods = getAllFoods().slice(0, 250).map((food) => ({
+    name: food.name,
+    portion: food.unit,
+    calories: food.cal,
+    protein: food.p,
+    carbs: food.c,
+    fat: food.f,
+    category: food.cat
+  }));
+  const now = new Date();
+  const prompt = [
+    'אתה מנתח יומן אכילה ופעילות בעברית. חלץ את כל המאכלים שנאכלו ואת כל הפעילויות הגופניות שתוארו. אל תמציא מזון, כמויות או משכי פעילות שלא נאמרו.',
+    'החזר ערכים תזונתיים לכל הכמות שנאכלה, לא ל-100 גרם אלא אם המשתמש אמר 100 גרם. אם הכמות אינה ברורה, הערך מנה סבירה וציין זאת ב-note.',
+    'השתמש במאגר המקומי המצורף לפני כל חיפוש. פריט תואם למאגר יקבל source=local_database, והערכים במאגר גוברים על הערכה.',
+    'השתמש ב-Google Search רק לפריט שלא נמצא במאגר, במיוחד מוצר ממותג, מסעדה או פריט ספציפי; אל תחפש פריטים רגילים שאפשר להעריך באופן סביר. כשנעשה חיפוש, קבע source=web_search; אחרת לפריט חדש קבע source=estimate.',
+    'שייך כל פריט לארוחה לפי מילות המשתמש (בוקר/breakfast, צהריים/lunch, ערב/dinner, נשנוש/snacks). אם לא צוין זמן או ארוחה, שייך לפי השעה המקומית כעת.',
+    'בחר לכל פריט category אחת מהקטגוריות המותרות בסכמה. פלט בעברית. אל תכלול פעילות גופנית או שתייה ללא קלוריות כפריטי מזון.',
+    'חלץ פעילויות גופניות למערך activities. משחק כדורסל 3 על 3 תמיד יקבל kind=basketball_3v3, calories=0, ושעות התחלה וסיום רק אם נאמרו במפורש. המר שעות כמו "משעה 15 עד 17" לפורמט 15:00 ו-17:00; אל תחשב קלוריות לכדורסל, האפליקציה תחשב אותן מהשעות. אם לא נאמרו שעות, השאר את startTime ו-endTime ריקים וציין ב-note שנדרשות שעות.',
+    'כל פעילות אחרת תקבל kind=other. חשב את משכה רק אם המשתמש ציין משך או מרחק שניתן להמיר למשך באופן סביר; אם יש משך, הערך קלוריות שנשרפו. אם אין משך ואין דרך סבירה להסיק אותו, השאר durationMinutes=0 ו-calories=0 וציין ב-note שחסר משך. אם אין מאכלים, החזר items כמערך ריק; אם אין פעילויות, החזר activities כמערך ריק.',
+    `השעה המקומית כעת: ${now.toLocaleString('he-IL')}.`,
+    `מאגר מזונות מקומי (מקור לשימוש חוזר, אל תחפש פריטים אלה): ${JSON.stringify(localFoods)}`,
+    `תיאור המשתמש: ${description}`
+  ].join('\n\n');
+
+  const response = await fetch('https://generativelanguage.googleapis.com/v1beta/interactions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-goog-api-key': unlockedGeminiApiKey
+    },
+    body: JSON.stringify({
+      model: GEMINI_MODEL,
+      input: prompt,
+      tools: [{ type: 'google_search' }],
+      response_format: {
+        type: 'text',
+        mime_type: 'application/json',
+        schema: buildAiFoodSchema()
+      }
+    })
+  });
+
+  const responseText = await response.text();
+  let responseBody;
+  try {
+    responseBody = responseText ? JSON.parse(responseText) : {};
+  } catch {
+    throw new Error('Gemini החזיר תשובה לא תקינה. בדוק שהמודל והמפתח מוגדרים כראוי.');
+  }
+  if (!response.ok) {
+    const apiMessage = responseBody.error?.message;
+    if (response.status === 401 || response.status === 403) {
+      throw new Error('Gemini דחה את מפתח ה-API. בדוק את המפתח ואת ההרשאות שלו בהגדרות.');
+    }
+    throw new Error(apiMessage || `בקשת Gemini נכשלה (HTTP ${response.status}).`);
+  }
+
+  const text = extractInteractionText(responseBody);
+  if (!text) throw new Error('Gemini לא החזיר תוצאות לניתוח הארוחה.');
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new Error('לא ניתן לפענח את תוצאות ניתוח הארוחה. נסה שוב.');
+  }
+
+  return {
+    ...validateAiFoodItems(parsed),
+    note: typeof parsed.note === 'string' ? parsed.note.trim() : '',
+    citations: collectGroundingLinks(responseBody)
+  };
+}
+
+function setAiAnalysisBusy(isBusy, message = '') {
+  const button = document.getElementById('ai-food-submit-btn');
+  button.disabled = isBusy;
+  button.textContent = isBusy ? '⏳ מנתח את הארוחה...' : '✨ נתח והוסף ליומן';
+  const progress = document.getElementById('ai-progress');
+  progress.textContent = message;
+  progress.classList.toggle('hidden', !message);
+}
+
 function renderAll() {
   renderDateHeader();
   renderSummaryHero();
@@ -680,11 +1206,148 @@ function renderAll() {
   renderFoodDatabaseView();
   renderStatsView();
   populateGoalsForm();
+  renderAiKeySettings();
 }
 
 /* ================= EVENT LISTENERS ================= */
 document.addEventListener('DOMContentLoaded', () => {
   renderAll();
+
+  // Gemini key encryption and unlock
+  document.getElementById('ai-key-setup-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!window.isSecureContext || !window.crypto?.subtle) {
+      setAiKeyStatus('הצפנת מפתח דורשת HTTPS או localhost ודפדפן התומך ב-Web Crypto.', true);
+      return;
+    }
+
+    const apiKey = document.getElementById('gemini-api-key-input').value.trim();
+    const password = document.getElementById('ai-encryption-password').value;
+    const confirmation = document.getElementById('ai-encryption-password-confirm').value;
+    if (!apiKey || password.length < 12) {
+      setAiKeyStatus('יש להזין מפתח API וסיסמת הצפנה באורך 12 תווים לפחות.', true);
+      return;
+    }
+    if (password !== confirmation) {
+      setAiKeyStatus('סיסמאות ההצפנה אינן תואמות.', true);
+      return;
+    }
+
+    const submitButton = document.getElementById('save-ai-key-btn');
+    submitButton.disabled = true;
+    try {
+      const record = await encryptApiKey(apiKey, password);
+      localStorage.setItem(AI_KEY_STORAGE_KEY, JSON.stringify(record));
+      unlockedGeminiApiKey = apiKey;
+      e.target.reset();
+      renderAiKeySettings();
+      showToast('מפתח Gemini הוצפן ונשמר במכשיר');
+    } catch (error) {
+      console.error('Failed to encrypt or save Gemini API key:', error);
+      setAiKeyStatus('לא ניתן להצפין או לשמור את המפתח בדפדפן. בדוק את הגדרות האחסון ונסה שוב.', true);
+    } finally {
+      submitButton.disabled = false;
+    }
+  });
+
+  document.getElementById('ai-key-unlock-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const password = document.getElementById('ai-unlock-password').value;
+    try {
+      const record = getStoredAiKeyRecord();
+      if (!record) throw new Error('לא נמצא מפתח Gemini מוצפן במכשיר.');
+      const apiKey = await decryptApiKey(record, password);
+      if (!apiKey) throw new Error('מפתח Gemini המפוענח ריק.');
+      unlockedGeminiApiKey = apiKey;
+      e.target.reset();
+      renderAiKeySettings();
+      showToast('מפתח Gemini נפתח בזיכרון וזמין לשימוש');
+    } catch (error) {
+      console.error('Failed to unlock Gemini API key:', error);
+      setAiKeyStatus(
+        error.message === 'לא נמצא מפתח Gemini מוצפן במכשיר.'
+          ? error.message
+          : 'לא ניתן לפתוח את המפתח. ייתכן שסיסמת ההצפנה שגויה או שהנתונים נפגמו.',
+        true
+      );
+    }
+  });
+
+  document.getElementById('lock-ai-key-btn').addEventListener('click', () => {
+    unlockedGeminiApiKey = null;
+    renderAiKeySettings();
+    showToast('מפתח Gemini ננעל והוסר מהזיכרון');
+  });
+
+  document.getElementById('remove-ai-key-btn').addEventListener('click', () => {
+    if (!window.confirm('למחוק את מפתח Gemini המוצפן מהמכשיר?')) return;
+    try {
+      localStorage.removeItem(AI_KEY_STORAGE_KEY);
+      unlockedGeminiApiKey = null;
+      renderAiKeySettings();
+      showToast('מפתח Gemini המוצפן נמחק מהמכשיר');
+    } catch (error) {
+      console.error('Failed to remove encrypted Gemini API key:', error);
+      setAiKeyStatus('לא ניתן למחוק את המפתח מהאחסון המקומי.', true);
+    }
+  });
+
+  document.getElementById('ai-food-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const description = document.getElementById('ai-food-description').value.trim();
+    const resultElement = document.getElementById('ai-result');
+    if (!description) return;
+    if (!unlockedGeminiApiKey) {
+      resultElement.textContent = 'כדי להשתמש ברישום AI, הגדר או פתח את מפתח Gemini בהגדרות AI ואבטחה.';
+      resultElement.classList.remove('hidden');
+      return;
+    }
+
+    resultElement.classList.add('hidden');
+    setAiAnalysisBusy(true, 'מנתח מאכלים ופעילויות, ומשתמש במאגר המקומי; חיפוש Google יופעל רק כשיידרש.');
+    try {
+      const analysis = await analyzeMealWithGemini(description);
+      const day = ensureDay(currentDate);
+      analysis.foods.forEach((item) => {
+        day.meals[item.meal].push({
+          id: `entry_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+          name: item.name,
+          portion: item.portion,
+          cal: item.cal,
+          p: item.p,
+          c: item.c,
+          f: item.f
+        });
+      });
+      const activityResult = prepareAiActivities(analysis.activities);
+      day.exercises.push(...activityResult.prepared);
+      const cachedCount = cacheAiFoods(analysis.foods);
+      if ((analysis.foods.length > 0 || activityResult.prepared.length > 0 || cachedCount > 0) && !saveState()) {
+        throw new Error('לא ניתן לשמור את הרישום במכשיר. בדוק את שטח האחסון של הדפדפן ונסה שוב.');
+      }
+      if (analysis.foods.length > 0 || activityResult.prepared.length > 0) {
+        document.getElementById('ai-food-description').value = '';
+      }
+      renderAll();
+      renderAiResult(
+        analysis.foods,
+        activityResult.prepared,
+        analysis.note,
+        analysis.citations,
+        cachedCount,
+        activityResult.skipped
+      );
+      if (analysis.foods.length > 0 || activityResult.prepared.length > 0) {
+        showToast(`נוספו ליומן ${analysis.foods.length + activityResult.prepared.length} פריטים`);
+      }
+    } catch (error) {
+      console.error('AI food logging failed:', error);
+      resultElement.textContent = error.message || 'ניתוח הארוחה נכשל. בדוק את החיבור ואת הגדרות Gemini ונסה שוב.';
+      resultElement.classList.remove('hidden');
+    } finally {
+      setAiAnalysisBusy(false);
+    }
+  });
 
   // Main View Navigation
   document.querySelectorAll('.nav-tab').forEach((tab) => {
