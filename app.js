@@ -145,6 +145,10 @@ let currentDate = getTodayDateString();
 let activeDbCategory = 'all';
 let selectedModalFood = null;
 let unlockedGeminiApiKey = null;
+let aiKeyReady = Promise.resolve();
+let aiKeyLoading = false;
+let aiKeyStorageError = '';
+let aiKeyChanging = false;
 let isAiAnalysisBusy = false;
 
 function saveState() {
@@ -739,24 +743,44 @@ function renderAiKeySettings() {
   } catch (error) {
     setupForm.classList.remove('hidden');
     unlockForm.classList.add('hidden');
-    keyActions.classList.add('hidden');
+    keyActions.classList.remove('hidden');
     setAiKeyStatus(error.message, true);
     return;
   }
 
-  if (!window.isSecureContext || !window.crypto?.subtle) {
+  if (aiKeyLoading) {
+    setAiKeyStatus('טוען את מפתח Gemini השמור במכשיר...');
+  } else if (aiKeyStorageError) {
+    setAiKeyStatus(aiKeyStorageError, true);
+  } else if (!window.isSecureContext || !window.crypto?.subtle) {
     setAiKeyStatus('אחסון מפתח מוצפן זמין רק בחיבור מאובטח (HTTPS או localhost).', true);
   } else if (unlockedGeminiApiKey) {
-    setAiKeyStatus('מפתח ה-AI פתוח בזיכרון וזמין לשימוש. המפתח עצמו אינו מוצג או נשמר כטקסט גלוי.');
+    setAiKeyStatus('מפתח Gemini נשמר מוצפן ומוכן לשימוש. הוא ייטען אוטומטית גם בהפעלה הבאה.');
   } else if (storedRecord) {
-    setAiKeyStatus('נמצא מפתח מוצפן במכשיר. הזן את סיסמת ההצפנה כדי להשתמש ב-AI.');
+    setAiKeyStatus('נמצא מפתח מהגרסה הקודמת. הזן את הסיסמה פעם אחת כדי להעביר אותו לשמירה אוטומטית, או הזן מחדש את מפתח ה-API.');
   } else {
     setAiKeyStatus('עדיין לא הוגדר מפתח Gemini במכשיר הזה.');
   }
 
-  setupForm.classList.remove('hidden');
+  setupForm.classList.toggle('hidden', Boolean(unlockedGeminiApiKey));
   unlockForm.classList.toggle('hidden', !storedRecord || Boolean(unlockedGeminiApiKey));
-  keyActions.classList.toggle('hidden', !storedRecord || !unlockedGeminiApiKey);
+  keyActions.classList.toggle('hidden', !storedRecord && !unlockedGeminiApiKey && !aiKeyStorageError);
+}
+
+async function restoreDeviceApiKey() {
+  aiKeyLoading = true;
+  renderAiKeySettings();
+  try {
+    unlockedGeminiApiKey = await deviceKeyStore.load();
+    if (unlockedGeminiApiKey) localStorage.removeItem(AI_KEY_STORAGE_KEY);
+  } catch (error) {
+    console.error('Failed restoring device Gemini key:', error);
+    aiKeyStorageError = 'לא ניתן לטעון את המפתח השמור. בדוק הרשאות אחסון או שמור מפתח מחדש.';
+    showToast(aiKeyStorageError);
+  } finally {
+    aiKeyLoading = false;
+    renderAiKeySettings();
+  }
 }
 
 function bytesToBase64(bytes) {
@@ -1308,29 +1332,27 @@ document.addEventListener('DOMContentLoaded', () => {
   // Gemini key encryption and unlock
   document.getElementById('ai-key-setup-form').addEventListener('submit', async (e) => {
     e.preventDefault();
+    if (aiKeyChanging) return;
     if (!window.isSecureContext || !window.crypto?.subtle) {
       setAiKeyStatus('הצפנת מפתח דורשת HTTPS או localhost ודפדפן התומך ב-Web Crypto.', true);
       return;
     }
 
     const apiKey = document.getElementById('gemini-api-key-input').value.trim();
-    const password = document.getElementById('ai-encryption-password').value;
-    const confirmation = document.getElementById('ai-encryption-password-confirm').value;
-    if (!apiKey || password.length < 12) {
-      setAiKeyStatus('יש להזין מפתח API וסיסמת הצפנה באורך 12 תווים לפחות.', true);
-      return;
-    }
-    if (password !== confirmation) {
-      setAiKeyStatus('סיסמאות ההצפנה אינן תואמות.', true);
+    if (!apiKey) {
+      setAiKeyStatus('יש להזין מפתח API.', true);
       return;
     }
 
     const submitButton = document.getElementById('save-ai-key-btn');
+    aiKeyChanging = true;
     submitButton.disabled = true;
     try {
-      const record = await encryptApiKey(apiKey, password);
-      localStorage.setItem(AI_KEY_STORAGE_KEY, JSON.stringify(record));
+      await aiKeyReady;
+      await deviceKeyStore.save(apiKey);
+      localStorage.removeItem(AI_KEY_STORAGE_KEY);
       unlockedGeminiApiKey = apiKey;
+      aiKeyStorageError = '';
       e.target.reset();
       renderAiKeySettings();
       showToast('מפתח Gemini הוצפן ונשמר במכשיר');
@@ -1338,51 +1360,74 @@ document.addEventListener('DOMContentLoaded', () => {
       console.error('Failed to encrypt or save Gemini API key:', error);
       setAiKeyStatus('לא ניתן להצפין או לשמור את המפתח בדפדפן. בדוק את הגדרות האחסון ונסה שוב.', true);
     } finally {
+      aiKeyChanging = false;
       submitButton.disabled = false;
     }
   });
 
   document.getElementById('ai-key-unlock-form').addEventListener('submit', async (e) => {
     e.preventDefault();
+    if (aiKeyChanging) return;
+    aiKeyChanging = true;
     const password = document.getElementById('ai-unlock-password').value;
+    const button = e.currentTarget.querySelector('button');
+    button.disabled = true;
     try {
+      await aiKeyReady;
       const record = getStoredAiKeyRecord();
       if (!record) throw new Error('לא נמצא מפתח Gemini מוצפן במכשיר.');
       const apiKey = await decryptApiKey(record, password);
       if (!apiKey) throw new Error('מפתח Gemini המפוענח ריק.');
+      await deviceKeyStore.save(apiKey);
+      localStorage.removeItem(AI_KEY_STORAGE_KEY);
       unlockedGeminiApiKey = apiKey;
+      aiKeyStorageError = '';
       e.target.reset();
       renderAiKeySettings();
-      showToast('מפתח Gemini נפתח בזיכרון וזמין לשימוש');
+      showToast('המפתח הועבר לשמירה אוטומטית. לא תידרש סיסמה בהפעלה הבאה.');
     } catch (error) {
       console.error('Failed to unlock Gemini API key:', error);
       setAiKeyStatus(
         error.message === 'לא נמצא מפתח Gemini מוצפן במכשיר.'
           ? error.message
-          : 'לא ניתן לפתוח את המפתח. ייתכן שסיסמת ההצפנה שגויה או שהנתונים נפגמו.',
+          : 'לא ניתן להעביר את המפתח. בדוק את הסיסמה ואת הרשאות האחסון. המפתח הישן לא נמחק אם השמירה נכשלה.',
         true
       );
+    } finally {
+      aiKeyChanging = false;
+      button.disabled = false;
     }
   });
 
-  document.getElementById('lock-ai-key-btn').addEventListener('click', () => {
-    unlockedGeminiApiKey = null;
-    renderAiKeySettings();
-    showToast('מפתח Gemini ננעל והוסר מהזיכרון');
+  document.getElementById('replace-ai-key-btn').addEventListener('click', () => {
+    document.getElementById('ai-key-setup-form').classList.remove('hidden');
+    document.getElementById('gemini-api-key-input').focus();
   });
 
-  document.getElementById('remove-ai-key-btn').addEventListener('click', () => {
+  document.getElementById('remove-ai-key-btn').addEventListener('click', async (e) => {
+    if (aiKeyChanging) return;
     if (!window.confirm('למחוק את מפתח Gemini המוצפן מהמכשיר?')) return;
+    aiKeyChanging = true;
+    const button = e.currentTarget;
+    button.disabled = true;
     try {
+      await aiKeyReady;
+      await deviceKeyStore.remove();
       localStorage.removeItem(AI_KEY_STORAGE_KEY);
       unlockedGeminiApiKey = null;
+      aiKeyStorageError = '';
       renderAiKeySettings();
       showToast('מפתח Gemini המוצפן נמחק מהמכשיר');
     } catch (error) {
       console.error('Failed to remove encrypted Gemini API key:', error);
       setAiKeyStatus('לא ניתן למחוק את המפתח מהאחסון המקומי.', true);
+    } finally {
+      aiKeyChanging = false;
+      button.disabled = false;
     }
   });
+
+  aiKeyReady = restoreDeviceApiKey();
 
   document.getElementById('ai-food-form').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -1392,6 +1437,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const description = document.getElementById('ai-food-description').value.trim();
     const resultElement = document.getElementById('ai-result');
     if (!description) return;
+    await aiKeyReady;
+    if (isAiAnalysisBusy) return;
     if (!unlockedGeminiApiKey) {
       resultElement.textContent = 'כדי להשתמש ברישום AI, הגדר או פתח את מפתח Gemini בהגדרות AI ואבטחה.';
       resultElement.classList.remove('hidden');

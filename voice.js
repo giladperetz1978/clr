@@ -153,7 +153,11 @@
 
   dismiss.addEventListener('click', () => panel.classList.add('hidden'));
 
-  button.addEventListener('click', () => {
+  button.addEventListener('click', async () => {
+    if (aiKeyLoading) {
+      message('טוען את מפתח Gemini השמור. לחץ שוב בעוד רגע.');
+      return;
+    }
     if (session) {
       stop(session);
       return;

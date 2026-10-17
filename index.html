@@ -465,35 +465,25 @@
           </div>
         </div>
         <div class="ai-security-note">
-          כל משתמש יכול להזין מפתח אישי בפרופיל הדפדפן שלו. אין באפליקציה חשבונות משתמשים: כדי להפריד מפתחות בין אנשים שמשתמשים באותו מכשיר, יש להשתמש בפרופילי דפדפן נפרדים. המפתח אינו נשלח לשרת של האפליקציה. ההצפנה נעשית במכשיר באמצעות AES-GCM וסיסמה אישית. מפתח ה-API מפוענח בזיכרון רק לצורך בקשות Gemini ונשלח ישירות ל-Google. סיסמת ההצפנה אינה נשמרת. בכדורסל 3×3 הקלוריות מחושבות לפי 8 MET, משך הזמן ומשקלך האחרון (או 75 ק"ג אם לא נרשמה שקילה).
+          שמירה חד־פעמית: מפתח Gemini מוצפן ב-AES-GCM ונטען אוטומטית בכל פתיחה, בלי סיסמה. מפתח ההצפנה נשמר באחסון הדפדפן כ-CryptoKey שאינו ניתן לייצוא. זו אינה נעילה בסיסמה: מי שיש לו גישה לפרופיל הדפדפן או לאפליקציה במכשיר יכול להשתמש ב-AI. השתמש בפרופילים נפרדים במכשיר משותף. המפתח נשלח רק ל-Google לצורך בקשות Gemini. מחיקת נתוני האתר או הסרת האפליקציה עלולות למחוק את המפתח השמור.
         </div>
         <form id="ai-key-setup-form" class="stacked-form">
           <div class="form-row">
             <label for="gemini-api-key-input">מפתח Gemini API אישי</label>
             <input type="password" id="gemini-api-key-input" autocomplete="off" placeholder="הדבק כאן את מפתח ה-API שלך" required>
           </div>
-          <div class="form-row-2">
-            <div class="form-row">
-              <label for="ai-encryption-password">סיסמה להצפנה (לפחות 12 תווים)</label>
-              <input type="password" id="ai-encryption-password" autocomplete="new-password" minlength="12" required>
-            </div>
-            <div class="form-row">
-              <label for="ai-encryption-password-confirm">אימות סיסמה</label>
-              <input type="password" id="ai-encryption-password-confirm" autocomplete="new-password" minlength="12" required>
-            </div>
-          </div>
-          <button type="submit" class="primary-btn full-width" id="save-ai-key-btn">🔒 הצפן ושמור את המפתח במכשיר</button>
+          <button type="submit" class="primary-btn full-width" id="save-ai-key-btn">🔒 שמור פעם אחת במכשיר</button>
         </form>
         <form id="ai-key-unlock-form" class="stacked-form hidden">
           <div class="form-row">
             <label for="ai-unlock-password">סיסמת ההצפנה שלך</label>
             <input type="password" id="ai-unlock-password" autocomplete="current-password" required>
           </div>
-          <button type="submit" class="primary-btn full-width">🔓 פתח את מפתח ה-AI</button>
+          <button type="submit" class="primary-btn full-width">🔓 העבר לשמירה אוטומטית — פעם אחת בלבד</button>
         </form>
         <div class="ai-key-status" id="ai-key-status" role="status" aria-live="polite"></div>
         <div class="ai-key-actions hidden" id="ai-key-actions">
-          <button type="button" class="secondary-btn btn-sm" id="lock-ai-key-btn">🔒 נעל מפתח</button>
+          <button type="button" class="secondary-btn btn-sm" id="replace-ai-key-btn">החלף מפתח</button>
           <button type="button" class="danger-btn btn-sm" id="remove-ai-key-btn">🗑️ מחק מפתח מוצפן מהמכשיר</button>
         </div>
       </section>
@@ -687,6 +677,7 @@
     </button>
   </aside>
 
+  <script src="key-store.js"></script>
   <script src="app.js"></script>
   <script src="voice.js"></script>
 </body>

@@ -1,10 +1,11 @@
-const CACHE_NAME = 'caloritrack-v3';
+const CACHE_NAME = 'caloritrack-v4';
 const ASSETS = [
   './',
   './index.html',
   './style.css',
   './app.js',
   './voice.js',
+  './key-store.js',
   './manifest.json',
   './icon-192.png',
   './icon-512.png'
