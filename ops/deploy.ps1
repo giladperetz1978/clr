@@ -38,8 +38,8 @@ if ($LASTEXITCODE -ne 0) { throw 'Could not upload server setup files.' }
 ssh $sshAlias "cd '$remoteRelease' && bash /tmp/server-setup.sh"
 if ($LASTEXITCODE -ne 0) { throw 'Server setup or HTTPS provisioning failed.' }
 
-$response = Invoke-WebRequest -Uri 'https://caloritrack.144.91.96.77.sslip.io/' -TimeoutSec 20
-if ($response.StatusCode -ne 200 -or $response.Content -notmatch 'auth-gate') {
+$body = (& curl.exe --fail --silent --show-error 'https://caloritrack.144.91.96.77.sslip.io/' | Out-String)
+if ($LASTEXITCODE -ne 0 -or $body -notmatch 'auth-gate') {
   throw 'HTTPS website check failed.'
 }
 Write-Host "Uploaded release $release and verified the HTTPS website and certificate."
