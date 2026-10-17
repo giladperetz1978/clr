@@ -175,7 +175,7 @@ body {
 /* Main Navigation */
 .main-nav {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
   background: var(--card-bg);
   padding: 6px;
@@ -191,13 +191,13 @@ body {
   font-family: inherit;
   font-size: 0.92rem;
   font-weight: 600;
-  padding: 10px 8px;
+  padding: 10px 5px;
   border-radius: var(--radius-md);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
+  gap: 5px;
   transition: all 0.2s ease;
 }
 
@@ -1439,6 +1439,12 @@ button:disabled {
     grid-template-columns: 1fr;
   }
   .nav-tab span:not(.nav-icon) {
-    font-size: 0.8rem;
+    font-size: 0.68rem;
+    white-space: nowrap;
+  }
+  .nav-tab {
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px 2px;
   }
 }

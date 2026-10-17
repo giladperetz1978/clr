@@ -60,7 +60,11 @@
       </button>
       <button type="button" class="nav-tab" data-view="goals">
         <span class="nav-icon">🎯</span>
-        <span>יעדים ומחשבון</span>
+        <span>יעדים</span>
+      </button>
+      <button type="button" class="nav-tab" data-view="settings">
+        <span class="nav-icon">⚙️</span>
+        <span>הגדרות</span>
       </button>
     </nav>
 
@@ -392,24 +396,28 @@
         </section>
       </div>
 
+    </main>
+
+    <!-- VIEW 5: SETTINGS -->
+    <main id="view-settings" class="view-section">
       <section class="card ai-settings-card">
         <div class="card-header">
           <div>
             <h2>🔐 הגדרות AI ואבטחת מפתח</h2>
-            <p class="card-subtitle">מפתח Gemini נשמר מוצפן בדפדפן בלבד. סיסמת ההצפנה אינה נשמרת ונדרשת לפתיחת המפתח בכל כניסה.</p>
+            <p class="card-subtitle">הזן כאן את מפתח Gemini האישי שלך. המפתח נשמר מוצפן בדפדפן הזה בלבד.</p>
           </div>
         </div>
         <div class="ai-security-note">
-          ההצפנה נעשית במכשיר באמצעות AES-GCM וסיסמה אישית. מפתח ה-API מפוענח בזיכרון רק לצורך בקשות Gemini; הוא נשלח ישירות ל-Google. בכדורסל 3×3 הקלוריות מחושבות לפי 8 MET, משך הזמן ומשקלך האחרון (או 75 ק"ג אם לא נרשמה שקילה). אין להזין סיסמה שבה משתמשים באתרים אחרים.
+          כל משתמש יכול להזין מפתח אישי בפרופיל הדפדפן שלו. אין באפליקציה חשבונות משתמשים: כדי להפריד מפתחות בין אנשים שמשתמשים באותו מכשיר, יש להשתמש בפרופילי דפדפן נפרדים. המפתח אינו נשלח לשרת של האפליקציה. ההצפנה נעשית במכשיר באמצעות AES-GCM וסיסמה אישית. מפתח ה-API מפוענח בזיכרון רק לצורך בקשות Gemini ונשלח ישירות ל-Google. סיסמת ההצפנה אינה נשמרת. בכדורסל 3×3 הקלוריות מחושבות לפי 8 MET, משך הזמן ומשקלך האחרון (או 75 ק"ג אם לא נרשמה שקילה).
         </div>
         <form id="ai-key-setup-form" class="stacked-form">
           <div class="form-row">
-            <label for="gemini-api-key-input">Gemini API key</label>
+            <label for="gemini-api-key-input">מפתח Gemini API אישי</label>
             <input type="password" id="gemini-api-key-input" autocomplete="off" placeholder="הדבק כאן את מפתח ה-API שלך" required>
           </div>
           <div class="form-row-2">
             <div class="form-row">
-              <label for="ai-encryption-password">סיסמת הצפנה (לפחות 12 תווים)</label>
+              <label for="ai-encryption-password">סיסמה להצפנה (לפחות 12 תווים)</label>
               <input type="password" id="ai-encryption-password" autocomplete="new-password" minlength="12" required>
             </div>
             <div class="form-row">
@@ -417,7 +425,7 @@
               <input type="password" id="ai-encryption-password-confirm" autocomplete="new-password" minlength="12" required>
             </div>
           </div>
-          <button type="submit" class="primary-btn full-width" id="save-ai-key-btn">🔒 הצפן ושמור במכשיר</button>
+          <button type="submit" class="primary-btn full-width" id="save-ai-key-btn">🔒 הצפן ושמור את המפתח במכשיר</button>
         </form>
         <form id="ai-key-unlock-form" class="stacked-form hidden">
           <div class="form-row">
@@ -429,7 +437,7 @@
         <div class="ai-key-status" id="ai-key-status" role="status" aria-live="polite"></div>
         <div class="ai-key-actions hidden" id="ai-key-actions">
           <button type="button" class="secondary-btn btn-sm" id="lock-ai-key-btn">🔒 נעל מפתח</button>
-          <button type="button" class="danger-btn btn-sm" id="remove-ai-key-btn">🗑️ מחק מפתח מוצפן</button>
+          <button type="button" class="danger-btn btn-sm" id="remove-ai-key-btn">🗑️ מחק מפתח מוצפן מהמכשיר</button>
         </div>
       </section>
     </main>
