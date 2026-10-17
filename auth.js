@@ -145,6 +145,7 @@
 
     document.getElementById('create-user-form').addEventListener('submit', async (event) => {
       event.preventDefault();
+      const form = event.currentTarget;
       const button = document.getElementById('create-user-button');
       button.disabled = true;
       const status = document.getElementById('admin-status');
@@ -156,7 +157,7 @@
             password: document.getElementById('new-user-password').value
           })
         });
-        event.currentTarget.reset();
+        form.reset();
         status.textContent = 'המשתמש נוצר. מסור לו את פרטי הכניסה בערוץ מאובטח.';
         await refreshAdminUsers();
       } catch (error) {
