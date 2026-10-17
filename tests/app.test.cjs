@@ -21,6 +21,7 @@ function setup({ voice = false, native = false, supported = true, locked = false
       const handlers = new Map();
       const attributes = {};
       elements.set(id, {
+        listeners: handlers,
         value: '', textContent: '', maxLength: 1200, dataset: {}, style: {}, readOnly: false,
         classList: {
           add: (...names) => names.forEach((name) => classes.add(name)),
@@ -127,6 +128,39 @@ test('Gemini key is server-managed, and local data is account scoped', () => {
   assert.match(app, /\$\{STORAGE_KEY\}_user_\$\{activeAccountId\}/);
   assert.doesNotMatch(app, /x-goog-api-key|unlockedGeminiApiKey/);
   assert.doesNotMatch(html, /gemini-api-key-input/);
+});
+
+test('recommendation chat handlers attach during app startup, not after food logging', () => {
+  const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+  const init = app.slice(app.indexOf("document.addEventListener('DOMContentLoaded'"));
+  const foodLog = init.indexOf("document.getElementById('ai-food-form')");
+  const recommendationInit = init.indexOf('attachRecommendationChatListeners();');
+  const navigationInit = init.indexOf('// Main View Navigation');
+
+  assert.ok(recommendationInit > foodLog);
+  assert.ok(recommendationInit < navigationInit);
+  assert.equal((init.match(/getElementById\('recommendation-chat-form'\)/g) || []).length, 0);
+
+  const env = setup();
+  env.context.attachRecommendationChatListeners();
+  assert.equal(env.element('recommendation-chat-form').listeners.has('submit'), true);
+  assert.equal(env.element('recommendation-new-chat').listeners.has('click'), true);
+});
+
+test('recommendation budget rendering tolerates cached pages without recommendation markup', () => {
+  const env = setup();
+  env.run(`
+    state = {goals: {calories: 2000}, days: {}, customFoods: [], weights: []};
+    const originalGetElementById = document.getElementById;
+    document.getElementById = (id) => id.startsWith('recommendation-budget-')
+      ? null : originalGetElementById(id);
+    renderRecommendationBudget();
+  `);
+});
+
+test('recommendation card spans the dashboard columns on narrow layouts', () => {
+  const css = fs.readFileSync(path.join(root, 'style.css'), 'utf8');
+  assert.match(css, /#view-dashboard \.ai-recommendation-card\s*\{\s*grid-column:\s*1\s*\/\s*-1;/);
 });
 
 test('Gemini schema covers dates for food, water and exercise', () => {

@@ -1647,6 +1647,11 @@ button:disabled {
     padding: 18px;
   }
 
+  #view-dashboard .ai-recommendation-card {
+    grid-column: 1 / -1;
+    min-width: 0;
+  }
+
   #view-dashboard .ai-log-card .card-header {
     margin-bottom: 12px;
   }
