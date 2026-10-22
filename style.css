@@ -2106,7 +2106,7 @@ button:disabled {
   .voice-dismiss:disabled { visibility: hidden; }
 
   @keyframes body-breathe {
-    50% { transform: scaleY(1.014) translateY(-2px); }
+    50% { transform: scaleY(1.03) translateY(-3px); }
   }
   @keyframes shadow-breathe {
     50% { transform: scaleX(.93); opacity: .52; }

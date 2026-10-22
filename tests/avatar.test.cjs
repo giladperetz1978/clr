@@ -11,6 +11,7 @@ test('production preserves all original SVG avatar action animations', () => {
   assert.match(html, /<svg class="body-avatar"/);
   assert.doesNotMatch(html, /avatar-motion\.js|<canvas/i);
   assert.doesNotMatch(styles, /\.has-natural-avatar\s+\.body-avatar\s*\{\s*display:\s*none/);
+  assert.match(styles, /@keyframes body-breathe\s*\{\s*50%\s*\{\s*transform:\s*scaleY\(1\.03\) translateY\(-3px\)/);
   assert.doesNotMatch(read('sw.js'), /avatar-motion\.js/);
   assert.doesNotMatch(read(path.join('ops', 'deploy.ps1')), /avatar-motion\.js/);
 
