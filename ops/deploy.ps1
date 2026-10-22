@@ -5,7 +5,7 @@ $remoteRoot = '/var/www/caloritrack'
 $release = (Get-Date).ToUniversalTime().ToString('yyyyMMddHHmmss')
 $remoteRelease = "$remoteRoot/releases/$release"
 $rootFiles = @(
-  'index.html', 'style.css', 'app.js', 'avatar-motion.js', 'auth.js', 'voice.js', 'sw.js',
+  'index.html', 'style.css', 'app.js', 'auth.js', 'voice.js', 'sw.js',
   'manifest.json', 'icon-192.png', 'icon-512.png', 'CaloriTrack-debug.apk', 'package.json'
 )
 $serverFiles = @('server.js', 'index.js', 'cli.js')
@@ -33,10 +33,8 @@ if ($LASTEXITCODE -ne 0) { throw 'Could not upload the credential provisioning u
 ssh $sshAlias "chown -R root:root '$remoteRelease' && find '$remoteRelease' -type d -exec chmod 0755 {} + && find '$remoteRelease' -type f -exec chmod 0644 {} + && ln -sfn '$remoteRelease' '$remoteRoot/current'"
 if ($LASTEXITCODE -ne 0) { throw 'Could not activate the uploaded release.' }
 
-scp ops\server-setup.sh "${sshAlias}:/tmp/"
-if ($LASTEXITCODE -ne 0) { throw 'Could not upload server setup files.' }
-ssh $sshAlias "cd '$remoteRelease' && bash /tmp/server-setup.sh"
-if ($LASTEXITCODE -ne 0) { throw 'Server setup or HTTPS provisioning failed.' }
+ssh $sshAlias "install -o root -g root -m 0644 '$remoteRelease/ops/caloritrack.service' /etc/systemd/system/caloritrack.service && install -o root -g root -m 0750 '$remoteRelease/ops/set-gemini-key.sh' /usr/local/sbin/caloritrack-set-gemini-key && systemctl daemon-reload && nginx -t && systemctl restart caloritrack.service && systemctl --quiet is-active caloritrack.service"
+if ($LASTEXITCODE -ne 0) { throw 'Could not restart and verify the CaloriTrack API service.' }
 
 $body = (& curl.exe --fail --silent --show-error 'https://caloritrack.144.91.96.77.sslip.io/' | Out-String)
 if ($LASTEXITCODE -ne 0 -or $body -notmatch 'auth-gate') {

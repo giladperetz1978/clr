@@ -91,10 +91,19 @@ test('blending preserves endpoints and does not mutate poses', () => {
   assert.throws(() => sample('unknown', 0), /Unknown avatar action/);
 });
 
-test('motion asset is loaded before app and included in offline cache and deployment', () => {
+test('production keeps the existing SVG avatar animations active', () => {
   const read = (file) => fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
   const html = read('index.html');
-  assert.ok(html.indexOf('src="avatar-motion.js"') < html.indexOf('src="app.js"'));
-  assert.ok(read('sw.js').includes("'./avatar-motion.js'"));
-  assert.ok(read(path.join('ops', 'deploy.ps1')).includes("'avatar-motion.js'"));
+  const styles = read('style.css');
+  assert.match(html, /<svg class="body-avatar"/);
+  assert.doesNotMatch(html, /src="avatar-motion\.js"/);
+  assert.doesNotMatch(styles, /\.has-natural-avatar\s+\.body-avatar\s*\{\s*display:\s*none/);
+  for (const animation of [
+    'arm-eat-lift', 'arm-drink-tilt', 'body-run-stride', 'body-gym-squat',
+    'basketball-dribble', 'soccer-ball-kick', 'racket-swing'
+  ]) {
+    assert.ok(styles.includes(`animation: ${animation}`), `${animation} must remain enabled`);
+  }
+  assert.ok(!read('sw.js').includes("'./avatar-motion.js'"));
+  assert.ok(!read(path.join('ops', 'deploy.ps1')).includes("'avatar-motion.js'"));
 });

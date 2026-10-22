@@ -1689,22 +1689,6 @@ button:disabled {
     transform-style: preserve-3d;
   }
 
-  .natural-avatar {
-    display: block;
-    width: 100%;
-    max-width: 225px;
-    aspect-ratio: 3 / 4;
-    margin: 0 auto;
-  }
-
-  .has-natural-avatar .body-avatar {
-    display: none;
-  }
-
-  .has-natural-avatar .body-avatar * {
-    animation: none !important;
-  }
-
   .body-avatar {
     display: block;
     height: 230px;
