@@ -1958,6 +1958,20 @@ button:disabled {
     animation: tennis-rally 1s ease-in-out infinite;
   }
 
+  .body-figure .avatar-props > .avatar-prop {
+    opacity: 0;
+  }
+
+  .body-figure[data-action="eating"] .prop-eating,
+  .body-figure[data-action="drinking"] .prop-drinking,
+  .body-figure[data-action="running"] .prop-running,
+  .body-figure[data-action="gym"] .prop-gym,
+  .body-figure[data-action="basketball"] .prop-basketball,
+  .body-figure[data-action="soccer"] .prop-soccer,
+  .body-figure[data-action="tennis"] .prop-tennis {
+    opacity: 1;
+  }
+
   #body-food-fill,
   #body-water-fill {
     transition: y .8s ease, height .8s ease;

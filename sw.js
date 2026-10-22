@@ -1,4 +1,4 @@
-const CACHE_NAME = 'caloritrack-v7';
+const CACHE_NAME = 'caloritrack-v8';
 const ASSETS = [
   './',
   './index.html',
