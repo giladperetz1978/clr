@@ -9,6 +9,9 @@ test('production preserves all original SVG avatar action animations', () => {
   const styles = read('style.css');
 
   assert.match(html, /<svg class="body-avatar"/);
+  assert.match(html, /href="style\.css\?v=9"/);
+  assert.match(html, /src="app\.js\?v=9"/);
+  assert.match(html, /src="auth\.js\?v=9"/);
   assert.doesNotMatch(html, /avatar-motion\.js|<canvas/i);
   assert.doesNotMatch(styles, /\.has-natural-avatar\s+\.body-avatar\s*\{\s*display:\s*none/);
   assert.match(styles, /@keyframes body-breathe\s*\{\s*50%\s*\{\s*transform:\s*scaleY\(1\.03\) translateY\(-3px\)/);
