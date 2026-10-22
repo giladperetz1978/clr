@@ -146,6 +146,77 @@ let isAiAnalysisBusy = false;
 let recommendationMessages = [];
 let recommendationQuestionsAsked = 0;
 let isRecommendationBusy = false;
+let activeAvatarAction = null;
+let activeAvatarTimerId = null;
+
+const AVATAR_ACTION_CLASS_NAMES = [
+  'action-eating',
+  'action-drinking',
+  'action-running',
+  'action-gym',
+  'action-basketball',
+  'action-soccer',
+  'action-tennis'
+];
+
+const AVATAR_ACTION_LABELS = {
+  eating: 'בתיאבון! מוסיפים אנרגיה 🍎',
+  drinking: 'לרוויה! שותים מים 💧',
+  running: 'בריצה! שורפים קלוריות 🏃',
+  gym: 'אימון חדר כושר בעיצומו 🏋️',
+  basketball: 'על הפרקט! משחקים כדורסל 🏀',
+  soccer: 'על המגרש! משחקים כדורגל ⚽',
+  tennis: 'חבטת פתיחה! משחקים טניס 🎾'
+};
+
+function classifyExerciseAvatarAction(exercise) {
+  const kind = typeof exercise === 'object' && exercise ? String(exercise.kind || '').toLowerCase() : '';
+  const rawName = typeof exercise === 'string'
+    ? exercise
+    : typeof exercise === 'object' && exercise
+      ? String(exercise.name || '')
+      : '';
+  const text = `${rawName} ${kind}`.toLowerCase();
+  if (kind === 'basketball_3v3' || /כדורסל|סל\b|basketball|3\s*על\s*3|3v3/.test(text)) {
+    return 'basketball';
+  }
+  if (/כדורגל|קטרגל|פוטבול|soccer|football/.test(text)) {
+    return 'soccer';
+  }
+  if (/טניס|מחבט|פאדל|פינג\s*פונג|tennis|padel/.test(text)) {
+    return 'tennis';
+  }
+  if (/ריצה|ריצת|לרוץ|רץ\b|רצה\b|ג׳וגינג|ג'וגינג|ספרינט|מרתון|\brun\b|running|jog/.test(text)) {
+    return 'running';
+  }
+  return 'gym';
+}
+
+function resolveDayAvatarAction(day) {
+  if (!day) return 'idle';
+  if (Array.isArray(day.exercises) && day.exercises.length > 0) {
+    return classifyExerciseAvatarAction(day.exercises[day.exercises.length - 1]);
+  }
+  return 'idle';
+}
+
+function triggerAvatarAction(action, dateStr = currentDate, durationMs = 4600) {
+  if (!AVATAR_ACTION_LABELS[action]) return;
+  if (activeAvatarTimerId) {
+    clearTimeout(activeAvatarTimerId);
+    activeAvatarTimerId = null;
+  }
+  activeAvatarAction = {
+    action,
+    dateStr
+  };
+  renderBodyAvatar();
+  activeAvatarTimerId = setTimeout(() => {
+    activeAvatarAction = null;
+    activeAvatarTimerId = null;
+    renderBodyAvatar();
+  }, durationMs);
+}
 
 function saveState() {
   try {
@@ -475,8 +546,12 @@ function renderWaterTracker() {
     glass.textContent = '🥤';
     glass.title = `כוס ${i} (${i * 250} מ"ל)`;
     glass.addEventListener('click', () => {
+      const prevWater = day.water;
       day.water = day.water === i ? i - 1 : i;
       saveState();
+      if (day.water > prevWater) {
+        triggerAvatarAction('drinking', currentDate);
+      }
       renderWaterTracker();
     });
     grid.appendChild(glass);
@@ -496,12 +571,44 @@ function renderBodyAvatar() {
   }
   document.getElementById('body-food-percent').textContent = `${Math.round(foodRatio * 100)}%`;
   document.getElementById('body-water-percent').textContent = `${Math.round(waterRatio * 100)}%`;
-  document.getElementById('body-figure').classList.toggle('is-active', day.exercises.length > 0);
-  document.getElementById('body-activity-label').textContent = day.exercises.length
-    ? `אימונים ביומן: ${day.exercises.length}`
-    : 'מתקדמים בקצב שלך';
+
+  const figure = document.getElementById('body-figure');
+  const transientAction = activeAvatarAction && activeAvatarAction.dateStr === currentDate
+    ? activeAvatarAction.action
+    : null;
+  const effectiveAction = transientAction || resolveDayAvatarAction(day);
+  const fillGroup = document.getElementById('body-fill-group');
+  if (fillGroup) {
+    fillGroup.setAttribute('clip-path', effectiveAction !== 'idle' ? 'url(#body-core-clip)' : 'url(#body-clip)');
+  }
+
+  AVATAR_ACTION_CLASS_NAMES.forEach((cls) => figure.classList.remove(cls));
+  if (effectiveAction && effectiveAction !== 'idle') {
+    figure.classList.add(`action-${effectiveAction}`);
+  }
+  figure.setAttribute('data-action', effectiveAction || 'idle');
+  figure.classList.toggle(
+    'is-active',
+    day.exercises.length > 0 || ['running', 'gym', 'basketball', 'soccer', 'tennis'].includes(effectiveAction)
+  );
+
+  const activityLabelEl = document.getElementById('body-activity-label');
+  if (transientAction && AVATAR_ACTION_LABELS[transientAction]) {
+    activityLabelEl.textContent = AVATAR_ACTION_LABELS[transientAction];
+  } else if (day.exercises.length) {
+    const daySportLabel = AVATAR_ACTION_LABELS[effectiveAction] || `אימונים ביומן: ${day.exercises.length}`;
+    activityLabelEl.textContent = `אימונים ביומן: ${day.exercises.length} · ${daySportLabel}`;
+  } else {
+    activityLabelEl.textContent = 'מתקדמים בקצב שלך';
+  }
   document.getElementById('avatar-desc').textContent =
     `ביום הנבחר: ${totals.eaten} קק"ל נצרכו, ${Math.round(day.water * 250)} מ"ל מים ו-${totals.burned} קק"ל נשרפו.`;
+  window.CaloriAvatar?.update({
+    action: effectiveAction,
+    food: foodRatio,
+    water: waterRatio,
+    description: `${document.getElementById('avatar-desc').textContent} ${activityLabelEl.textContent}`
+  });
 }
 
 /* ================= RENDER FOOD DATABASE VIEW ================= */
@@ -718,6 +825,7 @@ function addFoodEntryToDay(mealKey, entry) {
   if (!day.meals[mealKey]) day.meals[mealKey] = [];
   day.meals[mealKey].push(entry);
   saveState();
+  triggerAvatarAction('eating', currentDate);
   renderAll();
 }
 
@@ -1403,6 +1511,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (loggedDates.length === 1) {
         currentDate = loggedDates[0];
       }
+      if (activityResult.prepared.length > 0) {
+        const lastActivity = activityResult.prepared[activityResult.prepared.length - 1];
+        triggerAvatarAction(classifyExerciseAvatarAction(lastActivity), lastActivity.date || currentDate);
+      } else if (analysis.water.length > 0 && analysis.foods.length === 0) {
+        triggerAvatarAction('drinking', analysis.water[analysis.water.length - 1].date || currentDate);
+      } else if (analysis.foods.length > 0) {
+        triggerAvatarAction('eating', analysis.foods[analysis.foods.length - 1].date || currentDate);
+      }
       renderAll();
       renderAiResult(
         analysis.foods,
@@ -1471,6 +1587,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const day = ensureDay(currentDate);
     day.water += 1;
     saveState();
+    triggerAvatarAction('drinking', currentDate);
     renderWaterTracker();
     showToast('נוספה כוס מים 💧');
   });
@@ -1620,12 +1737,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!name || cal <= 0) return;
 
     const day = ensureDay(currentDate);
-    day.exercises.push({
+    const exEntry = {
       id: 'ex_' + Date.now(),
       name,
       cal
-    });
+    };
+    day.exercises.push(exEntry);
     saveState();
+    triggerAvatarAction(classifyExerciseAvatarAction(exEntry), currentDate);
     e.target.reset();
     document.getElementById('add-exercise-modal').classList.add('hidden');
     renderAll();

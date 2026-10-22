@@ -5,7 +5,7 @@ $remoteRoot = '/var/www/caloritrack'
 $release = (Get-Date).ToUniversalTime().ToString('yyyyMMddHHmmss')
 $remoteRelease = "$remoteRoot/releases/$release"
 $rootFiles = @(
-  'index.html', 'style.css', 'app.js', 'auth.js', 'voice.js', 'sw.js',
+  'index.html', 'style.css', 'app.js', 'avatar-motion.js', 'auth.js', 'voice.js', 'sw.js',
   'manifest.json', 'icon-192.png', 'icon-512.png', 'CaloriTrack-debug.apk', 'package.json'
 )
 $serverFiles = @('server.js', 'index.js', 'cli.js')

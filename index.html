@@ -100,42 +100,171 @@
           <h2 id="body-title">היום שלי, בתנועה</h2>
           <span class="body-live-badge" id="body-activity-label">מתחילים בקטן</span>
         </div>
-        <figure class="body-figure" id="body-figure">
+        <figure class="body-figure" id="body-figure" data-action="idle">
           <svg class="body-avatar" viewBox="0 0 240 320" role="img" aria-labelledby="avatar-title avatar-desc">
             <title id="avatar-title">דמות התקדמות יומית</title>
             <desc id="avatar-desc">המילוי הירוק מציג התקדמות קלוריות והכחול מציג שתיית מים.</desc>
             <defs>
-              <linearGradient id="body-surface" x1="0" x2="1">
-                <stop offset="0" stop-color="#547285"/>
-                <stop offset=".35" stop-color="#cce2e8"/>
-                <stop offset=".58" stop-color="#8ba6b7"/>
-                <stop offset="1" stop-color="#334d65"/>
+              <linearGradient id="body-surface" x1="0.1" y1="0" x2="0.95" y2="1">
+                <stop offset="0" stop-color="#7fa4ba"/>
+                <stop offset=".28" stop-color="#e2f3f8"/>
+                <stop offset=".55" stop-color="#9bb8c9"/>
+                <stop offset=".82" stop-color="#45657d"/>
+                <stop offset="1" stop-color="#22384c"/>
               </linearGradient>
-              <linearGradient id="body-food-gradient" x1="0" x2="1">
-                <stop stop-color="#0d7667"/><stop offset=".65" stop-color="#5ff3ad"/><stop offset="1" stop-color="#25b894"/>
+              <linearGradient id="body-rim-light" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stop-color="#ffffff" stop-opacity=".65"/>
+                <stop offset=".45" stop-color="#a5f3fc" stop-opacity=".18"/>
+                <stop offset="1" stop-color="#0f172a" stop-opacity=".55"/>
               </linearGradient>
-              <linearGradient id="body-water-gradient" x1="0" x2="1">
-                <stop stop-color="#6ae7ff"/><stop offset=".45" stop-color="#2eb3f1"/><stop offset="1" stop-color="#2263ba"/>
+              <linearGradient id="body-food-gradient" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0" stop-color="#0a6b5d"/>
+                <stop offset=".5" stop-color="#67f7b6"/>
+                <stop offset="1" stop-color="#1ca583"/>
               </linearGradient>
-              <radialGradient id="body-halo">
-                <stop stop-color="#24cba9" stop-opacity=".22"/><stop offset="1" stop-color="#24cba9" stop-opacity="0"/>
+              <linearGradient id="body-water-gradient" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0" stop-color="#7cebff"/>
+                <stop offset=".45" stop-color="#30b6f3"/>
+                <stop offset="1" stop-color="#1d58a8"/>
+              </linearGradient>
+              <radialGradient id="body-halo" cx=".5" cy=".48" r=".52">
+                <stop offset="0" stop-color="#2ee5b8" stop-opacity=".3"/>
+                <stop offset=".62" stop-color="#22a7f0" stop-opacity=".12"/>
+                <stop offset="1" stop-color="#24cba9" stop-opacity="0"/>
               </radialGradient>
+              <radialGradient id="prop-sphere-orange" cx=".35" cy=".3" r=".7">
+                <stop offset="0" stop-color="#ffd28a"/>
+                <stop offset=".45" stop-color="#f97316"/>
+                <stop offset="1" stop-color="#9a3412"/>
+              </radialGradient>
+              <radialGradient id="prop-sphere-white" cx=".35" cy=".3" r=".7">
+                <stop offset="0" stop-color="#ffffff"/>
+                <stop offset=".6" stop-color="#dbeafe"/>
+                <stop offset="1" stop-color="#64748b"/>
+              </radialGradient>
+              <radialGradient id="prop-sphere-lime" cx=".35" cy=".3" r=".7">
+                <stop offset="0" stop-color="#f7fee7"/>
+                <stop offset=".5" stop-color="#a3e635"/>
+                <stop offset="1" stop-color="#3f6212"/>
+              </radialGradient>
+              <radialGradient id="prop-apple-grad" cx=".35" cy=".3" r=".7">
+                <stop offset="0" stop-color="#fecdd3"/>
+                <stop offset=".45" stop-color="#f43f5e"/>
+                <stop offset="1" stop-color="#881337"/>
+              </radialGradient>
+              <linearGradient id="prop-metal-grad" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stop-color="#f8fafc"/>
+                <stop offset=".5" stop-color="#94a3b8"/>
+                <stop offset="1" stop-color="#334155"/>
+              </linearGradient>
+              <linearGradient id="limb-surface" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0" stop-color="#608196"/>
+                <stop offset=".42" stop-color="#eef9fc"/>
+                <stop offset=".75" stop-color="#90aebe"/>
+                <stop offset="1" stop-color="#36536b"/>
+              </linearGradient>
               <path id="body-shape" d="M120 20 C94 20 92 40 95 56 C97 67 101 73 108 78 L108 88 C88 91 73 94 68 113 L49 177 Q45 191 57 195 Q69 198 73 184 L86 141 L87 188 L86 219 L82 278 Q79 295 88 298 L103 298 Q113 294 111 280 L114 221 L126 221 L129 280 Q127 294 137 298 L152 298 Q161 295 158 278 L154 219 L153 188 L154 141 L167 184 Q171 198 183 195 Q195 191 191 177 L172 113 C167 94 152 91 132 88 L132 78 C139 73 143 67 145 56 C148 40 146 20 120 20Z"/>
+              <path id="body-core-shape" d="M120 20 C94 20 92 40 95 56 C97 67 101 73 108 78 L108 88 C92 91 84 98 85 118 L87 188 L86 219 Q86 225 96 225 L144 225 Q154 225 154 219 L153 188 L155 118 C156 98 148 91 132 88 L132 78 C139 73 143 67 145 56 C148 40 146 20 120 20Z"/>
               <clipPath id="body-clip"><use href="#body-shape"/></clipPath>
+              <clipPath id="body-core-clip"><use href="#body-core-shape"/></clipPath>
             </defs>
-            <ellipse cx="120" cy="156" rx="117" ry="150" fill="url(#body-halo)"/>
-            <ellipse class="body-shadow" cx="120" cy="305" rx="57" ry="8" fill="#020d1c" opacity=".65"/>
+            <ellipse class="body-halo-ring" cx="120" cy="156" rx="117" ry="150" fill="url(#body-halo)"/>
+            <ellipse class="body-floor-grid" cx="120" cy="305" rx="76" ry="13" fill="none" stroke="#38bdf8" stroke-opacity=".22" stroke-width="1.5"/>
+            <ellipse class="body-shadow" cx="120" cy="305" rx="57" ry="8" fill="#020d1c" opacity=".68"/>
             <g class="body-model">
-              <use href="#body-shape" fill="url(#body-surface)" stroke="#d5f3fa" stroke-opacity=".4"/>
-              <g clip-path="url(#body-clip)">
+              <use class="body-static-silhouette" href="#body-shape" fill="url(#body-surface)" stroke="#d5f3fa" stroke-opacity=".48"/>
+              <use class="body-core-silhouette" href="#body-core-shape" fill="url(#body-surface)" stroke="#d5f3fa" stroke-opacity=".48"/>
+              <g class="body-fill-group" id="body-fill-group" clip-path="url(#body-clip)">
                 <rect id="body-food-fill" x="40" y="298" width="80" height="0" fill="url(#body-food-gradient)"/>
                 <rect id="body-water-fill" x="120" y="298" width="80" height="0" fill="url(#body-water-gradient)"/>
-                <path d="M102 29 Q111 24 126 28 M80 114 L63 177 M97 213 L93 279" fill="none" stroke="white" stroke-width="6" stroke-linecap="round" opacity=".24"/>
-                <path d="M120 94 L120 203 M92 122 Q120 136 148 122 M103 165 Q120 171 137 165" fill="none" stroke="#092e45" stroke-width="2" opacity=".22"/>
+                <ellipse cx="120" cy="150" rx="46" ry="118" fill="url(#body-rim-light)" opacity=".34"/>
+                <path class="body-static-highlights" d="M102 29 Q111 24 126 28 M80 114 L63 177 M97 213 L93 279" fill="none" stroke="white" stroke-width="6" stroke-linecap="round" opacity=".28"/>
+                <path class="body-static-Lowlights" d="M145 34 Q151 48 143 66 M162 116 L177 176 M146 214 L150 278" fill="none" stroke="#081c2c" stroke-width="5" stroke-linecap="round" opacity=".26"/>
+                <path d="M120 94 L120 203 M92 122 Q120 136 148 122 M103 165 Q120 171 137 165" fill="none" stroke="#092e45" stroke-width="2" opacity=".24"/>
               </g>
-              <ellipse cx="109" cy="49" rx="3" ry="4" fill="#14394d"/>
-              <ellipse cx="131" cy="49" rx="3" ry="4" fill="#14394d"/>
-              <path d="M111 64 Q120 71 129 64" fill="none" stroke="#14394d" stroke-width="2.5" stroke-linecap="round"/>
+              <g class="avatar-action-limbs" aria-hidden="true">
+                <g class="avatar-limb avatar-limb-leg-left">
+                  <path d="M101 218 L94 287" stroke="url(#limb-surface)" stroke-width="19" stroke-linecap="round"/>
+                  <ellipse cx="93" cy="294" rx="11.5" ry="5.5" fill="#38bdf8" stroke="#e0f2fe" stroke-width="1"/>
+                </g>
+                <g class="avatar-limb avatar-limb-leg-right">
+                  <path d="M139 218 L146 287" stroke="url(#limb-surface)" stroke-width="19" stroke-linecap="round"/>
+                  <ellipse cx="147" cy="294" rx="11.5" ry="5.5" fill="#34d399" stroke="#d1fae5" stroke-width="1"/>
+                </g>
+                <g class="avatar-limb avatar-limb-arm-left">
+                  <path d="M84 106 Q66 143 60 180" fill="none" stroke="url(#limb-surface)" stroke-width="15" stroke-linecap="round"/>
+                  <circle cx="60" cy="182" r="8" fill="#e2f3f8" stroke="#94a3b8" stroke-width="1"/>
+                </g>
+                <g class="avatar-limb avatar-limb-arm-right">
+                  <path d="M156 106 Q174 143 180 180" fill="none" stroke="url(#limb-surface)" stroke-width="15" stroke-linecap="round"/>
+                  <circle cx="180" cy="182" r="8" fill="#e2f3f8" stroke="#94a3b8" stroke-width="1"/>
+                </g>
+              </g>
+              <g class="avatar-head-rig" aria-hidden="true">
+                <ellipse class="avatar-eye avatar-eye-left" cx="109" cy="49" rx="3" ry="4" fill="#14394d"/>
+                <ellipse class="avatar-eye avatar-eye-right" cx="131" cy="49" rx="3" ry="4" fill="#14394d"/>
+                <path class="avatar-mouth avatar-mouth-smile" d="M111 64 Q120 71 129 64" fill="none" stroke="#14394d" stroke-width="2.5" stroke-linecap="round"/>
+                <ellipse class="avatar-mouth avatar-mouth-eat" cx="120" cy="65" rx="6.5" ry="5.2" fill="#0f293a"/>
+                <ellipse class="avatar-mouth avatar-mouth-drink" cx="120" cy="65" rx="4.2" ry="4.8" fill="#0c4a6e"/>
+              </g>
+              <g class="avatar-props" aria-hidden="true">
+                <g class="avatar-prop prop-eating" id="avatar-prop-eating">
+                  <g class="food-hand-item">
+                    <circle cx="148" cy="84" r="13" fill="url(#prop-apple-grad)"/>
+                    <path d="M148 70 Q151 64 156 66" fill="none" stroke="#a3e635" stroke-width="2.5" stroke-linecap="round"/>
+                    <ellipse cx="143" cy="79" rx="3.5" ry="2" fill="#fff" opacity=".55"/>
+                  </g>
+                  <circle class="eat-crumb crumb-1" cx="127" cy="70" r="2.2" fill="#fde047"/>
+                  <circle class="eat-crumb crumb-2" cx="114" cy="73" r="1.8" fill="#fb7185"/>
+                </g>
+                <g class="avatar-prop prop-drinking" id="avatar-prop-drinking">
+                  <g class="drink-bottle">
+                    <rect x="142" y="64" width="16" height="30" rx="6" fill="url(#body-water-gradient)" stroke="#e0f2fe" stroke-width="1.5"/>
+                    <rect x="146" y="57" width="8" height="7" rx="2" fill="#e2e8f0"/>
+                    <path class="drink-stream" d="M144 62 Q132 62 122 65" fill="none" stroke="#7dd3fc" stroke-width="3.5" stroke-linecap="round"/>
+                  </g>
+                </g>
+                <g class="avatar-prop prop-running" id="avatar-prop-running">
+                  <path class="run-wind wind-1" d="M22 118 H56" stroke="#38bdf8" stroke-width="3" stroke-linecap="round"/>
+                  <path class="run-wind wind-2" d="M14 158 H48" stroke="#6ee7b7" stroke-width="3" stroke-linecap="round"/>
+                  <path class="run-wind wind-3" d="M26 204 H62" stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round"/>
+                </g>
+                <g class="avatar-prop prop-gym" id="avatar-prop-gym">
+                  <g class="gym-barbell">
+                    <line x1="42" y1="88" x2="198" y2="88" stroke="url(#prop-metal-grad)" stroke-width="6" stroke-linecap="round"/>
+                    <rect x="34" y="68" width="11" height="40" rx="4" fill="#334155" stroke="#94a3b8" stroke-width="1.5"/>
+                    <rect x="25" y="73" width="8" height="30" rx="3" fill="#1e293b" stroke="#64748b" stroke-width="1.2"/>
+                    <rect x="195" y="68" width="11" height="40" rx="4" fill="#334155" stroke="#94a3b8" stroke-width="1.5"/>
+                    <rect x="207" y="73" width="8" height="30" rx="3" fill="#1e293b" stroke="#64748b" stroke-width="1.2"/>
+                  </g>
+                </g>
+                <g class="avatar-prop prop-basketball" id="avatar-prop-basketball">
+                  <g class="basketball-hoop">
+                    <rect x="184" y="42" width="32" height="22" rx="3" fill="#0f172a" fill-opacity=".6" stroke="#e2e8f0" stroke-width="1.5"/>
+                    <line x1="172" y1="62" x2="202" y2="62" stroke="#f97316" stroke-width="3" stroke-linecap="round"/>
+                    <path d="M175 62 L179 78 M185 62 L185 79 M195 62 L191 78 M177 70 H193" stroke="#e2e8f0" stroke-width="1.2" opacity=".75"/>
+                  </g>
+                  <g class="basketball-ball">
+                    <circle cx="186" cy="212" r="17" fill="url(#prop-sphere-orange)" stroke="#7c2d12" stroke-width="1.3"/>
+                    <path d="M169 212 H203 M186 195 V229 M174 200 Q186 212 174 224 M198 200 Q186 212 198 224" fill="none" stroke="#431407" stroke-width="1.5"/>
+                  </g>
+                </g>
+                <g class="avatar-prop prop-soccer" id="avatar-prop-soccer">
+                  <g class="soccer-ball">
+                    <circle cx="176" cy="285" r="15" fill="url(#prop-sphere-white)" stroke="#334155" stroke-width="1.3"/>
+                    <polygon points="176,277 182,281 180,288 172,288 170,281" fill="#0f172a"/>
+                    <path d="M176 277 L176 270 M182 281 L189 279 M180 288 L185 295 M172 288 L167 295 M170 281 L163 279" stroke="#1e293b" stroke-width="1.3"/>
+                  </g>
+                </g>
+                <g class="avatar-prop prop-tennis" id="avatar-prop-tennis">
+                  <g class="tennis-racket">
+                    <ellipse cx="198" cy="118" rx="16" ry="22" transform="rotate(-24 198 118)" fill="#ecfccb" fill-opacity=".16" stroke="#a3e635" stroke-width="3"/>
+                    <path d="M190 104 L205 132 M186 113 L208 123 M194 100 L199 135" stroke="#d9f99d" stroke-width="1" opacity=".7"/>
+                    <line x1="184" y1="138" x2="173" y2="165" stroke="#f8fafc" stroke-width="4.5" stroke-linecap="round"/>
+                  </g>
+                  <circle class="tennis-ball" cx="54" cy="126" r="7.5" fill="url(#prop-sphere-lime)" stroke="#365314" stroke-width="1"/>
+                </g>
+              </g>
             </g>
             <g class="sweat-drops" fill="#6ce4ff" aria-hidden="true">
               <path class="sweat-drop" d="M161 45 Q151 60 161 62 Q171 60 161 45Z"/>
@@ -689,7 +818,10 @@
       <div class="exercise-presets" id="exercise-presets-list">
         <button type="button" class="ex-preset-chip" data-name="הליכה מהירה (45 דק')" data-cal="220">🚶 הליכה (220 קק"ל)</button>
         <button type="button" class="ex-preset-chip" data-name="ריצה (30 דק')" data-cal="320">🏃 ריצה (320 קק"ל)</button>
-        <button type="button" class="ex-preset-chip" data-name="אימון כוח ומשקולות" data-cal="250">🏋️ אימון כוח (250 קק"ל)</button>
+        <button type="button" class="ex-preset-chip" data-name="אימון כוח בחדר כושר" data-cal="250">🏋️ חדר כושר (250 קק"ל)</button>
+        <button type="button" class="ex-preset-chip" data-name="כדורסל (45 דק')" data-cal="360">🏀 כדורסל (360 קק"ל)</button>
+        <button type="button" class="ex-preset-chip" data-name="כדורגל (45 דק')" data-cal="380">⚽ כדורגל (380 קק"ל)</button>
+        <button type="button" class="ex-preset-chip" data-name="טניס (45 דק')" data-cal="310">🎾 טניס (310 קק"ל)</button>
         <button type="button" class="ex-preset-chip" data-name="רכיבה על אופניים" data-cal="280">🚴 אופניים (280 קק"ל)</button>
         <button type="button" class="ex-preset-chip" data-name="שחייה (40 דק')" data-cal="340">🏊 שחייה (340 קק"ל)</button>
       </div>
@@ -765,6 +897,7 @@
   </aside>
 
   <script src="auth.js"></script>
+  <script src="avatar-motion.js"></script>
   <script src="app.js"></script>
   <script src="voice.js"></script>
 </body>

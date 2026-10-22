@@ -243,6 +243,56 @@ test('avatar shows selected-day nutrition, water, exercise and capped fills', ()
   assert.equal(env.element('body-figure').classList.contains('is-active'), false);
 });
 
+test('avatar animates eating, drinking, running, gym, basketball, soccer and tennis actions', () => {
+  const env = setup();
+  env.run('renderAll = () => {}; saveState = () => true;');
+  env.context.addFoodEntryToDay('breakfast', {
+    id: 'f1', name: 'תפוח', portion: '1', cal: 80, p: 0, c: 20, f: 0
+  });
+
+  test('natural avatar receives selected-day fills and transient actions without changing diary data', () => {
+    const env = setup();
+    const updates = [];
+    env.window.CaloriAvatar = { update: (next) => updates.push(next) };
+    env.run("ensureDay(currentDate).water = 5; renderBodyAvatar();");
+    assert.equal(updates.at(-1).water, .5);
+    assert.equal(updates.at(-1).action, 'idle');
+    const before = env.run('JSON.stringify(state)');
+    env.context.triggerAvatarAction('drinking');
+    assert.equal(updates.at(-1).action, 'drinking');
+    assert.equal(env.run('JSON.stringify(state)'), before);
+    env.advance(4600);
+    assert.equal(updates.at(-1).action, 'idle');
+    env.run("currentDate = '2026-10-16'; renderBodyAvatar();");
+    assert.equal(updates.at(-1).water, 0);
+  });
+  assert.ok(env.element('body-figure').classList.contains('action-eating'));
+  assert.equal(env.element('body-figure').getAttribute('data-action'), 'eating');
+
+  env.context.triggerAvatarAction('drinking', '2026-10-17');
+  assert.ok(env.element('body-figure').classList.contains('action-drinking'));
+  assert.equal(env.element('body-figure').getAttribute('data-action'), 'drinking');
+
+  const cases = [
+    [{ name: 'ריצה בפארק', cal: 300 }, 'running'],
+    [{ name: 'אימון חדר כושר ומשקולות', cal: 250 }, 'gym'],
+    [{ name: 'כדורסל 3 על 3', kind: 'basketball_3v3', cal: 400 }, 'basketball'],
+    [{ name: 'משחק כדורגל', cal: 380 }, 'soccer'],
+    [{ name: 'טניס יחידים', cal: 310 }, 'tennis']
+  ];
+
+  for (const [exercise, expectedAction] of cases) {
+    assert.equal(env.context.classifyExerciseAvatarAction(exercise), expectedAction);
+    env.run(`
+      ensureDay(currentDate).exercises = [${JSON.stringify(exercise)}];
+      activeAvatarAction = null;
+      renderBodyAvatar();
+    `);
+    assert.ok(env.element('body-figure').classList.contains(`action-${expectedAction}`), expectedAction);
+    assert.equal(env.element('body-figure').getAttribute('data-action'), expectedAction);
+  }
+});
+
 test('microphone is red while recording; second tap submits final transcript once', () => {
   const env = setup({ voice: true });
   env.element('voice-toggle').click();
